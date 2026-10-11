@@ -18,6 +18,7 @@ What that means for the code:
 | CSS grid, custom properties | no | floats and absolute positioning |
 | flexbox, `object-fit`, `classList`, transforms | yes | used (with `-webkit-` prefixes kept for safety) |
 | WebP in `<img>` | yes | Immich's default webp thumbnails work |
+| `<video>` with H.264 MP4 | yes (hardware decoder, one at a time) | Immich's transcoded playback file; a video is unloaded (`removeAttribute('src')` + `load()`) as soon as it's left |
 
 `capabilities.html` is still useful to run once in the TV browser to double-check, but it no longer blocks anything.
 
@@ -53,6 +54,7 @@ No build step. The files in `app/` are what ships.
 | Assets in an album | the same two timeline calls with `albumId=...` |
 | Grid image | `GET /api/assets/{id}/thumbnail?size=thumbnail` (small webp) |
 | Full-screen image | `GET /api/assets/{id}/thumbnail?size=preview` (large jpeg, right for 1080p) |
+| Video | `GET /api/assets/{id}/video/playback` (the transcoded copy, H.264 MP4 by default; range requests supported) as a `<video>` src. Length is the bucket's `duration[]` column, in ms in v3 (older servers sent `"H:MM:SS.sss"`; both are parsed) |
 
 **Auth:** the API key goes in the `?apiKey=` query parameter. The server accepts it there as well as in the `x-api-key` header (`server/src/services/auth.service.ts`). This lets `<img>` tags load thumbnails directly, since they can't send headers, and it keeps JSON calls free of CORS preflights. The trade-off is that the key can show up in server or proxy access logs. That's acceptable on a home LAN.
 
@@ -94,4 +96,5 @@ How it plays out by way of running the app:
 2. **Install over root SSH** and launch on the TV. This needs a short window when nobody is watching. Then settle the CORS question above.
 3. Real-library performance: test against the full Immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
 4. Check on the TV: OpenStreetMap tiles load over HTTPS (old TVs can lack newer root certificates), and whether the webOS screensaver interrupts long slideshows.
-5. Later: video playback (`/assets/{id}/video/playback`, H.264), photo details panel, "jump to year".
+5. Check video on the TV: real Immich transcodes play (and 4K or HEVC originals that Immich didn't transcode fail cleanly to the still), the video draws above the still and below the bar, and stepping between videos never leaves the decoder stuck. Tested so far only in desktop Chromium against the mock.
+6. Later: seeking in videos (Left/Right are taken by previous/next), photo details panel, "jump to year".

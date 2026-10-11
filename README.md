@@ -28,6 +28,7 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
 | **Settings** | Slideshow speed and order, grouping, thumbnail size, hide videos, change server, sign out |
 | **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place) |
+| **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
 
 ## Remote keys
 
@@ -36,6 +37,7 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | Anywhere | Arrows move, OK opens, Back goes back, **Play** starts a slideshow of what's focused |
 | Photo grids | CH+/CH- jump three rows |
 | Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, ▼ hide info |
+| On a video | OK, Play and Pause play and pause it (it starts by itself when opened from the grid). Left/Right stop it and move on |
 | Map | Arrows move, CH+/CH- zoom, OK opens the bubble under the crosshair |
 
 The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
@@ -53,7 +55,7 @@ Create the key in Immich under Account Settings → API Keys. A key with **all p
 - **Install:** packaged as an IPK, sideloaded via Homebrew Channel / dev mode.
 - **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
 
-**Not yet:** video playback, photo details (camera, location), people in a photo, multiple accounts.
+**Not yet:** seeking within a video, photo details (camera, location), people in a photo, multiple accounts.
 
 ## Running it (development)
 
@@ -68,6 +70,8 @@ Or with a fake library, no Immich needed:
 ```bash
 python tools/devserver.py --mock
 ```
+
+The mock's videos all play the same tiny 6-second clip (built by the dev server, no files needed), except December 2025's, which fail on purpose to show the "can't play" fallback.
 
 Open `http://localhost:8000/` on this PC, or `http://192.168.8.101:8000/` in the TV's web browser. Leave the server address as filled in, paste an API key (Immich → Account Settings → API Keys; any key works in mock mode) and connect.
 

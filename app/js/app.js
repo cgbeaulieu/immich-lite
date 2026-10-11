@@ -233,7 +233,11 @@
   // ---------- rendering ----------
 
   function renderAsset(it) {
-    return { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : 'VIDEO' };
+    return { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : videoBadge(it) };
+  }
+
+  function videoBadge(it) {
+    return 'VIDEO' + (it.duration ? ' ' + U.fmtDuration(it.duration / 1000) : '');
   }
 
   function renderCard(it) {
@@ -476,6 +480,7 @@
       index: index,
       autoplay: autoplay,
       urlFor: function (it) { return client.thumbUrl(it.id, 'preview'); },
+      videoUrlFor: function (it) { return client.videoUrl(it.id); },
       more: loadMore,
       toggleFavorite: toggleFavorite,
       onClose: function (i) {

@@ -5,7 +5,8 @@
    send headers at all. Immich accepts either (server/src/services/auth.service.ts).
 
    Assets are passed around the app as small objects:
-   {id, isImage, isFavorite, date: 'YYYY-MM-DD' (local day it was taken)}. */
+   {id, isImage, isFavorite, date: 'YYYY-MM-DD' (local day it was taken),
+    duration: ms (videos; 0 if unknown)}. */
 var Immich = (function () {
   'use strict';
 
@@ -167,6 +168,14 @@ var Immich = (function () {
     return this.url('/people/' + encodeURIComponent(id) + '/thumbnail');
   };
 
+  // ---------- video ----------
+
+  /* The video for a <video> tag. Immich serves its transcoded copy here (H.264 MP4 by
+     default, which the TV decodes in hardware) and supports range requests for seeking. */
+  Client.prototype.videoUrl = function (id) {
+    return this.url('/assets/' + encodeURIComponent(id) + '/video/playback');
+  };
+
   // ---------- helpers ----------
 
   function copy(obj) {
@@ -184,7 +193,8 @@ var Immich = (function () {
         id: ids[i],
         isImage: cols.isImage ? cols.isImage[i] : true,
         isFavorite: cols.isFavorite ? !!cols.isFavorite[i] : false,
-        date: U.localDay(cols.fileCreatedAt ? cols.fileCreatedAt[i] : null, cols.localOffsetHours ? cols.localOffsetHours[i] : 0)
+        date: U.localDay(cols.fileCreatedAt ? cols.fileCreatedAt[i] : null, cols.localOffsetHours ? cols.localOffsetHours[i] : 0),
+        duration: cols.duration ? durationMs(cols.duration[i]) : 0
       });
     }
     return out;
@@ -200,10 +210,20 @@ var Immich = (function () {
         id: a.id,
         isImage: a.type === 'IMAGE',
         isFavorite: !!a.isFavorite,
-        date: String(a.localDateTime || a.fileCreatedAt || '').substr(0, 10)
+        date: String(a.localDateTime || a.fileCreatedAt || '').substr(0, 10),
+        duration: durationMs(a.duration)
       });
     }
     return out;
+  }
+
+  /* A video's length in ms (0 if unknown). v3 sends milliseconds; older servers
+     sent a string like "0:00:12.345000". */
+  function durationMs(v) {
+    var m;
+    if (typeof v === 'number') { return v; }
+    m = /^(\d+):(\d+):(\d+(?:\.\d+)?)$/.exec(String(v || ''));
+    return m ? Math.round(((parseInt(m[1], 10) * 60 + parseInt(m[2], 10)) * 60 + parseFloat(m[3])) * 1000) : 0;
   }
 
   function searchResult(cb) {

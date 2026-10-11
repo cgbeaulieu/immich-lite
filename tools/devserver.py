@@ -18,6 +18,7 @@ import os
 import random
 import shutil
 import socket
+import struct
 import urllib.error
 import urllib.request
 from urllib.parse import parse_qs, urlsplit
@@ -227,6 +228,18 @@ class Mock:
             asset_id, big = path.split("/")[3], self.arg("size") == "preview"
             return self.svg(1440 if big else 250, 960 if big else 250,
                             int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 64 if big else 22)
+        if path.startswith("/api/assets/") and path.endswith("/video/playback"):
+            # Videos from December 2025 fail, to try the app's "can't play" fallback.
+            if path.split("/")[3].startswith("2025-12"):
+                return self.h.send_json(404, {"message": "Mock video missing", "statusCode": 404})
+            raw = mock_video()
+            self.h.send_response(200)
+            self.h.send_header("Content-Type", "video/mp4")
+            self.h.send_header("Content-Length", str(len(raw)))
+            self.h.end_headers()
+            if method != "HEAD":
+                self.h.wfile.write(raw)
+            return None
         return self.h.send_json(404, {"message": "Not mocked: " + path, "statusCode": 404})
 
     # ----- fake library -----
@@ -273,7 +286,8 @@ class Mock:
         return {
             "id": [a["id"] for a in items], "isImage": [a["img"] for a in items],
             "isFavorite": [a["fav"] for a in items], "fileCreatedAt": [a["date"] for a in items],
-            "ratio": [1.5] * n, "createdAt": [None] * n, "duration": [None] * n, "isTrashed": [False] * n,
+            "ratio": [1.5] * n, "createdAt": [None] * n, "isTrashed": [False] * n,
+            "duration": [None if a["img"] else MOCK_VIDEO_MS for a in items],
             "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n, "ownerId": ["mock-user"] * n,
             "projectionType": [None] * n, "thumbhash": [None] * n, "visibility": ["timeline"] * n,
         }
@@ -281,7 +295,8 @@ class Mock:
     @staticmethod
     def dto(a):
         return {"id": a["id"], "type": "IMAGE" if a["img"] else "VIDEO", "isFavorite": a["fav"],
-                "fileCreatedAt": a["date"], "localDateTime": a["date"]}
+                "fileCreatedAt": a["date"], "localDateTime": a["date"],
+                "duration": None if a["img"] else MOCK_VIDEO_MS}
 
     def page(self, items, body):
         page, size = int(body.get("page") or 1), int(body.get("size") or 100)
@@ -309,6 +324,108 @@ class Mock:
         self.h.send_header("Content-Length", str(len(raw)))
         self.h.end_headers()
         self.h.wfile.write(raw)
+
+
+# ----- mock video -----
+#
+# A 6-second H.264 MP4 built with the standard library: one flat colour per second,
+# 48x32 pixels. Every frame is a keyframe made of I_PCM macroblocks (raw pixels), so
+# no encoder is needed, yet any H.264 decoder (Chrome's, the TV's) can play it.
+
+MOCK_VIDEO_MS = 6000
+_MOCK_VIDEO = []
+_COLOURS = [(81, 90, 240), (145, 54, 34), (41, 240, 110), (210, 16, 146), (170, 166, 16), (106, 202, 222)]  # Y, Cb, Cr
+
+
+def mock_video():
+    if not _MOCK_VIDEO:
+        _MOCK_VIDEO.append(_build_mp4(48, 32))
+    return _MOCK_VIDEO[0]
+
+
+def _ue(n):
+    """Exp-Golomb code, as a string of bits."""
+    b = bin(n + 1)[2:]
+    return "0" * (len(b) - 1) + b
+
+
+def _nal(bits):
+    """Bits (NAL header byte first) -> NAL bytes, with RBSP trailing bits and
+    emulation prevention (no 00 00 0x in the payload)."""
+    bits += "1"
+    bits += "0" * (-len(bits) % 8)
+    raw = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits), 8))
+    out, zeros = bytearray(raw[:1]), 0
+    for b in raw[1:]:
+        if zeros >= 2 and b <= 3:
+            out.append(3)
+            zeros = 0
+        out.append(b)
+        zeros = zeros + 1 if b == 0 else 0
+    return bytes(out)
+
+
+def _byte_bits(data):
+    return "".join("{:08b}".format(b) for b in data)
+
+
+def _box(kind, *parts):
+    data = b"".join(parts)
+    return struct.pack(">I4s", 8 + len(data), kind) + data
+
+
+def _full_box(kind, flags, *parts):
+    return _box(kind, struct.pack(">I", flags), *parts)  # version 0
+
+
+def _build_mp4(w, h):
+    mbs = (w // 16) * (h // 16)
+    # Baseline profile, level 3.0, POC type 2 (no B-frames), no VUI.
+    sps = _nal("01100111" + "01000010" + "11000000" + "00011110" + _ue(0) + _ue(0) + _ue(2) + _ue(1) + "0"
+               + _ue(w // 16 - 1) + _ue(h // 16 - 1) + "1" + "1" + "0" + "0")
+    # CAVLC, one slice group, no weighted prediction, QP 26, default deblocking.
+    pps = _nal("01101000" + _ue(0) + _ue(0) + "0" + "0" + _ue(0) + _ue(0) + _ue(0) + "0" + "00"
+               + "1" + "1" + "1" + "0" + "0" + "0")
+    samples = []
+    for i, (y, cb, cr) in enumerate(_COLOURS):
+        # IDR slice header: first_mb 0, slice_type I (7), pps 0, frame_num 0, idr_pic_id
+        # alternating (consecutive IDRs must differ), dec_ref_pic_marking 0 0, qp delta 0.
+        bits = "01100101" + _ue(0) + _ue(7) + _ue(0) + "0000" + _ue(i % 2) + "00" + _ue(0)
+        pcm = _byte_bits(bytes([y] * 256 + [cb] * 64 + [cr] * 64))
+        for _ in range(mbs):
+            bits += _ue(25)  # mb_type I_PCM
+            bits += "0" * (-len(bits) % 8) + pcm
+        nal = _nal(bits)
+        samples.append(struct.pack(">I", len(nal)) + nal)
+
+    dur = MOCK_VIDEO_MS
+    matrix = struct.pack(">9I", 0x10000, 0, 0, 0, 0x10000, 0, 0, 0, 0x40000000)
+    avcc = _box(b"avcC", bytes([1, 66, 0xC0, 30, 0xFF, 0xE1]), struct.pack(">H", len(sps)), sps,
+                b"\x01", struct.pack(">H", len(pps)), pps)
+    avc1 = _box(b"avc1", b"\0" * 6, struct.pack(">HHH3IHHIIIH", 1, 0, 0, 0, 0, 0, w, h, 0x480000, 0x480000, 0, 1),
+                b"\0" * 32, struct.pack(">Hh", 0x18, -1), avcc)
+
+    def moov(offset):
+        stbl = _box(b"stbl",
+                    _full_box(b"stsd", 0, struct.pack(">I", 1), avc1),
+                    _full_box(b"stts", 0, struct.pack(">III", 1, len(samples), dur // len(samples))),
+                    _full_box(b"stsc", 0, struct.pack(">IIII", 1, 1, len(samples), 1)),
+                    _full_box(b"stsz", 0, struct.pack(">II", 0, len(samples)),
+                              b"".join(struct.pack(">I", len(s)) for s in samples)),
+                    _full_box(b"stco", 0, struct.pack(">II", 1, offset)))
+        minf = _box(b"minf", _full_box(b"vmhd", 1, b"\0" * 8),
+                    _box(b"dinf", _full_box(b"dref", 0, struct.pack(">I", 1), _full_box(b"url ", 1))), stbl)
+        mdia = _box(b"mdia", _full_box(b"mdhd", 0, struct.pack(">IIIIHH", 0, 0, 1000, dur, 0x55C4, 0)),
+                    _full_box(b"hdlr", 0, struct.pack(">I4s3I", 0, b"vide", 0, 0, 0), b"VideoHandler\0"), minf)
+        tkhd = _full_box(b"tkhd", 3, struct.pack(">5I", 0, 0, 1, 0, dur), b"\0" * 8, struct.pack(">hhhH", 0, 0, 0, 0),
+                         matrix, struct.pack(">II", w << 16, h << 16))
+        mvhd = _full_box(b"mvhd", 0, struct.pack(">IIIIIH", 0, 0, 1000, dur, 0x10000, 0x100), b"\0" * 10, matrix,
+                         b"\0" * 24, struct.pack(">I", 2))
+        return _box(b"moov", mvhd, _box(b"trak", tkhd, mdia))
+
+    ftyp = _box(b"ftyp", b"isom", struct.pack(">I", 0x200), b"isomiso2avc1mp41")
+    head = len(ftyp) + len(moov(0)) + 8  # the first sample starts right after the mdat header
+    return ftyp + moov(head) + _box(b"mdat", b"".join(samples))
 
 
 def main():

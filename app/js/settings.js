@@ -12,7 +12,7 @@ var Settings = (function () {
     { key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large'], def: 'medium',
       text: function (v) { return v.charAt(0).toUpperCase() + v.substr(1); } },
     { key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
-      text: function (v) { return v === 'show' ? 'Show' : 'Hide (they can\'t play yet)'; } }
+      text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } }
   ];
 
   var box, info, rows = [], focus = 0, active = false, handlers = null;
