@@ -113,6 +113,10 @@ class Server(http.server.ThreadingHTTPServer):
 
 
 FAVORITES = {}  # asset id -> bool, set through PUT /api/assets while the mock runs
+RATINGS = {}    # asset id -> 1..5, -1 or None, set through PUT /api/assets
+# album id -> asset ids added through PUT /api/albums/{id}/assets. Each album already
+# holds its cover photo, so adding the first timeline photo to "Summer 2026" says "Already in".
+ALBUM_ASSETS = {}
 
 
 class Mock:
@@ -168,9 +172,15 @@ class Mock:
             return self.send(self.columns(self.filtered((self.arg("timeBucket") or "")[:7])))
         if path == "/api/assets" and method == "PUT":
             b = self.body()
+            # v3: 1-5 stars, -1 rejected, null unrated; 0 is refused.
+            if "rating" in b and b["rating"] not in (None, -1, 1, 2, 3, 4, 5):
+                return self.h.send_json(400, {"message": ["rating must not be less than -1, and 0 is no longer valid"],
+                                              "error": "Bad Request", "statusCode": 400})
             for asset_id in b.get("ids", []):
                 if "isFavorite" in b:
                     FAVORITES[asset_id] = bool(b["isFavorite"])
+                if "rating" in b:
+                    RATINGS[asset_id] = b["rating"]
             self.h.send_response(204)
             self.h.send_header("Content-Length", "0")
             self.h.end_headers()
@@ -227,6 +237,23 @@ class Mock:
             asset_id, big = path.split("/")[3], self.arg("size") == "preview"
             return self.svg(1440 if big else 250, 960 if big else 250,
                             int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 64 if big else 22)
+        if path.startswith("/api/assets/") and path.count("/") == 3 and method == "GET":
+            info = self.asset_info(path.split("/")[3])
+            if not info:
+                return self.h.send_json(400, {"message": "Not found or no asset.read access", "statusCode": 400})
+            return self.send(info)
+        if path.startswith("/api/albums/") and path.endswith("/assets") and method == "PUT":
+            album_id = path.split("/")[3]
+            if album_id not in ["album-%d" % i for i in range(len(self.ALBUMS))]:
+                return self.h.send_json(400, {"message": "Not found or no album.read access", "statusCode": 400})
+            have, out = self.album_assets(album_id), []
+            for asset_id in self.body().get("ids", []):
+                if asset_id in have:
+                    out.append({"id": asset_id, "success": False, "error": "duplicate"})
+                else:
+                    ALBUM_ASSETS.setdefault(album_id, set()).add(asset_id)
+                    out.append({"id": asset_id, "success": True})
+            return self.send(out)
         return self.h.send_json(404, {"message": "Not mocked: " + path, "statusCode": 404})
 
     # ----- fake library -----
@@ -291,8 +318,64 @@ class Mock:
                           "assets": {"items": [self.dto(a) for a in chunk], "count": len(chunk), "total": len(items),
                                      "facets": [], "nextPage": str(page + 1) if more else None}})
 
+    CAMERAS = [("Apple", "iPhone 15 Pro", "iPhone 15 Pro back triple camera 6.765mm f/1.78"),
+               ("Canon", "Canon EOS R6", "RF24-105mm F4 L IS USM"), ("SONY", "ILCE-7M3", "FE 35mm F1.8"),
+               ("Google", "Pixel 8", None), (None, None, None)]  # the last: a screenshot, no camera
+    STATES = {"Calgary": "Alberta", "Banff": "Alberta", "Canmore": "Alberta", "Vancouver": "British Columbia",
+              "Toronto": "Ontario", "Kalispell": "Montana", "Whitefish": "Montana", "Seattle": "Washington"}
+
+    def person(self, i):
+        # person-6 (no name) is hidden, to check the app leaves hidden people out.
+        return {"id": "person-%d" % i, "name": self.PEOPLE[i], "isHidden": i == 6, "thumbnailPath": "x",
+                "birthDate": None, "otherPeople": [], "sharedBy": [], "sharedWith": []}
+
+    def asset_info(self, asset_id):
+        """GET /api/assets/{id}: an AssetResponseDto with exifInfo and people."""
+        try:
+            month, _, i = asset_id.rsplit("-", 2)
+            i, year, mon = int(i), int(month[:4]), int(month[5:7])
+        except ValueError:
+            return None
+        h = int(hashlib.md5(("info" + asset_id).encode()).hexdigest(), 16)
+        img = i % 11 != 5
+        day = max(1, 28 - (i * 27 // max(self.count(month), 1)))
+        taken = "%04d-%02d-%02dT%02d:%02d:00.000Z" % (year, mon, day, 7 + h % 14, h // 14 % 60)
+        make, model, lens = self.CAMERAS[h % len(self.CAMERAS)]
+        w, ht = [(4032, 3024), (6000, 4000), (3024, 4032)][h // 5 % 3]
+        c = self.city_of(asset_id)
+        people = sorted({(h >> (8 + 4 * j)) % len(self.PEOPLE) for j in range(h // 7 % 4)})
+        exif = {
+            "make": make, "model": model, "lensModel": lens,
+            "fNumber": [1.8, 2.8, 4.0, 5.6, 8.0][h // 3 % 5] if make else None,
+            "exposureTime": ["1/60", "1/125", "1/250", "1/1000", "0.5"][h // 11 % 5] if make else None,
+            "iso": [50, 100, 200, 400, 1600][h // 13 % 5] if make else None,
+            "focalLength": [6.765, 24.0, 35.0, 50.0, 105.0][h // 17 % 5] if make else None,
+            "exifImageWidth": w, "exifImageHeight": ht, "fileSizeInByte": 900000 + h % 9000000,
+            "dateTimeOriginal": taken, "modifyDate": taken, "timeZone": "America/Edmonton", "orientation": "1",
+            "projectionType": None, "latitude": c[2] if c else None, "longitude": c[3] if c else None,
+            "city": c[0] if c else None, "state": self.STATES.get(c[0]) if c else None, "country": c[1] if c else None,
+            "description": "Fun day out with everyone" if h % 5 == 0 else "",
+            "rating": RATINGS.get(asset_id, [None, None, None, 3, 5][h // 19 % 5]),
+        }
+        return {
+            "id": asset_id, "type": "IMAGE" if img else "VIDEO", "ownerId": "mock-user",
+            "originalFileName": ("IMG_%04d.%s" % (h % 10000, "JPG" if img else "MOV")),
+            "originalMimeType": "image/jpeg" if img else "video/quicktime",
+            "originalPath": "/data/library/mock/%s.jpg" % asset_id, "checksum": "bW9jaw==", "thumbhash": None,
+            "fileCreatedAt": taken, "fileModifiedAt": taken, "localDateTime": taken,
+            "createdAt": taken, "updatedAt": taken, "duration": None if img else 12000,
+            "width": w, "height": ht, "isFavorite": FAVORITES.get(asset_id, i % 7 == 3),
+            "isArchived": False, "isTrashed": False, "isOffline": False, "isEdited": False, "hasMetadata": True,
+            "visibility": "timeline", "livePhotoVideoId": None, "stack": None, "tags": [],
+            "exifInfo": exif, "people": [self.person(p) for p in people],
+        }
+
+    def album_assets(self, album_id):
+        i = int(album_id.split("-")[1])
+        return {"%s-0-%d" % (self.MONTHS[i % 6], i)} | ALBUM_ASSETS.get(album_id, set())
+
     def album(self, i):
-        return {"id": "album-%d" % i, "albumName": self.ALBUMS[i], "assetCount": 12 + i * 7,
+        return {"id": "album-%d" % i, "albumName": self.ALBUMS[i], "assetCount": 12 + i * 7 + len(ALBUM_ASSETS.get("album-%d" % i, ())),
                 "albumThumbnailAssetId": None if i == 3 else "%s-0-%d" % (self.MONTHS[i % 6], i),
                 "updatedAt": "2026-%02d-01T00:00:00.000Z" % (10 - i % 9),
                 "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9)}

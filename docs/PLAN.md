@@ -32,6 +32,7 @@ app/                 the webOS app (packaged as the IPK later)
   js/immich.js       Immich REST client (XHR)
   js/grid.js         focusable grid: packed sections (days, Explore rows), lazy images
   js/viewer.js       full-screen viewer, slideshow, favorite toggle
+  js/details.js      the viewer's details panel: info, people, star rating, add to album
   js/settings.js     settings page and stored preferences
   js/search.js       search page and recent searches
   js/map.js          remote-first photo map (OpenStreetMap tiles, clustered bubbles)
@@ -67,8 +68,13 @@ More endpoints used for Explore, Search, Map and Favorites:
 | Map | `GET /api/map/markers` (every located photo: id, lat, lon, city) |
 | Favorites | timeline calls with `isFavorite=true`; star with `PUT /api/assets {ids, isFavorite}` |
 | Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `city`, `isFavorite`) |
+| Photo details | `GET /api/assets/{id}`: `exifInfo` (camera, lens, exposure, place, `rating`) and `people` (id + name, enough for `/people/{id}/thumbnail`, so no `face.read` needed). Fetched 0.4 s after landing on a photo (not during a slideshow) so the caption can show the stars; the last 30 are cached |
+| Rating | `PUT /api/assets {ids, rating}`: 1-5, or `null` to clear (v3 rejects 0). Saves go out one at a time so quick presses land in order |
+| Add to album | `PUT /api/albums/{id}/assets {ids}` answers `[{id, success, error}]`; `error: 'duplicate'` means it was already there |
 
-**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`. A key with all permissions also works.
+**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `albumAsset.create`, `person.read`, `memory.read`, `map.read`.
+
+Both `PUT /api/assets` and `PUT /api/assets/{id}` are marked deprecated in v3.3.1, with no replacement in that version yet. The app uses the bulk one (favorites and ratings); check this when Immich ships the replacement. A key with all permissions also works.
 
 ## CORS: the open question
 
@@ -94,4 +100,5 @@ How it plays out by way of running the app:
 2. **Install over root SSH** and launch on the TV. This needs a short window when nobody is watching. Then settle the CORS question above.
 3. Real-library performance: test against the full Immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
 4. Check on the TV: OpenStreetMap tiles load over HTTPS (old TVs can lack newer root certificates), and whether the webOS screensaver interrupts long slideshows.
-5. Later: video playback (`/assets/{id}/video/playback`, H.264), photo details panel, "jump to year".
+5. Later: video playback (`/assets/{id}/video/playback`, H.264), "jump to year".
+6. Check on the TV: the ★ and ☆ characters render in the TV's fonts (♥ already does, and they're in the same Unicode block), and the number keys on the LG remote send 48-57.

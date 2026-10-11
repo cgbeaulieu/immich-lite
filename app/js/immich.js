@@ -156,6 +156,21 @@ var Immich = (function () {
     this.put('/assets', { ids: ids, isFavorite: on }, cb);
   };
 
+  /* rating: 1-5, or null to clear it (v3 no longer accepts 0). */
+  Client.prototype.setRating = function (ids, rating, cb) {
+    this.put('/assets', { ids: ids, rating: rating }, cb);
+  };
+
+  /* cb(err, [{id, success, error}]); error 'duplicate' means it was already in the album. */
+  Client.prototype.addToAlbum = function (albumId, ids, cb) {
+    this.put('/albums/' + encodeURIComponent(albumId) + '/assets', { ids: ids }, cb);
+  };
+
+  // ---------- one asset ----------
+
+  /* The full AssetResponseDto: exifInfo (camera, place, rating...) and people. */
+  Client.prototype.asset = function (id, cb) { this.get('/assets/' + encodeURIComponent(id), null, cb); };
+
   // ---------- images ----------
 
   /* size: 'thumbnail' (small webp, for the grid) or 'preview' (large jpeg, for full screen). */

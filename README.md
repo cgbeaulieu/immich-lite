@@ -27,6 +27,7 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | **Albums** | Your albums and albums shared with you |
 | **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
 | **Settings** | Slideshow speed and order, grouping, thumbnail size, hide videos, change server, sign out |
+| **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
 | **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place) |
 
 ## Remote keys
@@ -35,7 +36,8 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 |---|---|
 | Anywhere | Arrows move, OK opens, Back goes back, **Play** starts a slideshow of what's focused |
 | Photo grids | CH+/CH- jump three rows |
-| Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, ▼ hide info |
+| Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, **▼ details panel**, **1-5 star rating**, 0 clears it |
+| Details panel | Up/Down move between faces, rating, Add to album and Hide info bar (Down on the last row closes), Left/Right pick a face or change the stars, OK selects, Back closes. Left/Right don't change photos while it's open |
 | Map | Arrows move, CH+/CH- zoom, OK opens the bubble under the crosshair |
 
 The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
@@ -43,7 +45,7 @@ The Magic Remote pointer works too: point to focus, click to open, and on the ma
 ## API key permissions
 
 Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
-`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites), `album.read`, `person.read`, `memory.read`, `map.read`.
+`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`.
 
 ## Target / constraints
 
@@ -53,7 +55,7 @@ Create the key in Immich under Account Settings → API Keys. A key with **all p
 - **Install:** packaged as an IPK, sideloaded via Homebrew Channel / dev mode.
 - **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
 
-**Not yet:** video playback, photo details (camera, location), people in a photo, multiple accounts.
+**Not yet:** video playback, multiple accounts.
 
 ## Running it (development)
 
