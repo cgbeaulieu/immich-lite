@@ -97,28 +97,39 @@
       empty: empty || 'No photos here yet' };
   }
 
-  /* withStacked: a stack (burst shots, edits) shows as its primary photo only, with a
-     count badge; the viewer steps through the rest with CH+/CH-. */
   function photosView() {
-    return assetView('photos', '', function () { return new TimelineSource({ visibility: 'timeline', order: 'desc', withStacked: true }); },
+    return assetView('photos', '', function () { return new TimelineSource(photosFilter()); },
       { visibility: 'timeline' }, true);
+  }
+
+  /* Immich only accepts withPartners on the plain timeline (visibility=timeline, no
+     favorite or trash filter), which is what Photos asks for. /search/random has no
+     withPartners, so shuffle keeps the filter above. */
+  /* withStacked: a stack (burst shots, edits) shows as its primary photo only, with a
+     count badge; the viewer steps through the rest with CH+/CH-. Only on Photos:
+     Immich hides a stack's other photos under any filter, so in an album, a person,
+     favorites or a tag a photo would vanish when its stack's primary isn't there too. */
+  function photosFilter() {
+    var f = { visibility: 'timeline', order: 'desc', withStacked: true };
+    if (Settings.get('withPartners') === 'on') { f.withPartners = true; }
+    return f;
   }
 
   function favoritesView() {
     return assetView('favorites', 'Favorites',
-      function () { return new TimelineSource({ isFavorite: true, visibility: 'timeline', order: 'desc', withStacked: true }); },
+      function () { return new TimelineSource({ isFavorite: true, visibility: 'timeline', order: 'desc' }); },
       { isFavorite: true }, true, 'No favorites yet. In the photo viewer, press ▲ to add one.');
   }
 
   function albumView(a) {
     return assetView('albums', a.albumName || 'Untitled album',
-      function () { return new TimelineSource({ albumId: a.id, order: 'desc', withStacked: true }); },
+      function () { return new TimelineSource({ albumId: a.id, order: 'desc' }); },
       { albumIds: [a.id] }, true, 'This album is empty');
   }
 
   function personView(p) {
     return assetView(view().tab, p.name || 'Unnamed person',
-      function () { return new TimelineSource({ personId: p.id, visibility: 'timeline', order: 'desc', withStacked: true }); },
+      function () { return new TimelineSource({ personId: p.id, visibility: 'timeline', order: 'desc' }); },
       { personIds: [p.id] }, true);
   }
 
@@ -197,12 +208,137 @@
           if (got.places.length > EXPLORE_ROW) { items.push({ kind: 'more', label: 'All places', sub: got.places.length + ' places', open: placesView }); }
           sections.push({ key: 'places', title: 'Places', items: items });
         }
+        sections.push({ key: 'library', title: 'Library', items: libraryCards() });
         cb(null, sections);
       }
       client.memories(function (err, list) { if (err) { errors.push(err); } got.memories = list; done(); });
       client.people(function (err, list) { if (err) { errors.push(err); } got.people = list; done(); });
       client.places(function (err, list) { if (err) { errors.push(err); } got.places = list; done(); });
     }, 'Nothing to explore yet. People, places and memories appear once Immich has processed your photos.');
+  }
+
+  // ---------- library: archive, folders, tags ----------
+
+  /* The Library row on Explore. Text-only cards (no cover to show). */
+  function libraryCards() {
+    return [
+      { kind: 'archive', label: 'Archive', sub: 'Kept out of Photos' },
+      { kind: 'folders', label: 'Folders', sub: 'Browse by folder' },
+      { kind: 'tags', label: 'Tags', sub: 'Browse by tag' }
+    ];
+  }
+
+  function archiveView() {
+    return assetView(view().tab, 'Archive',
+      function () { return new TimelineSource({ visibility: 'archive', order: 'desc' }); },
+      { visibility: 'archive' }, true, 'No archived photos. Photos you archive in Immich show up here instead of in Photos.');
+  }
+
+  function tagsView() {
+    return cardsView(view().tab, 'Tags', function (cb) {
+      client.tags(function (err, list) {
+        if (err) { return cb(err); }
+        // Sorting by the full value keeps a tag's children ("Places/Canada") right after it.
+        list = (list || []).slice().sort(function (a, b) {
+          var x = String(a.value || a.name).toLowerCase(), y = String(b.value || b.name).toLowerCase();
+          return x < y ? -1 : (x > y ? 1 : 0);
+        });
+        cb(null, [{ key: 'tags', items: map(list, function (t) { return { kind: 'tag', tag: t }; }) }]);
+      });
+    }, 'No tags yet. Tags you add in Immich show up here.');
+  }
+
+  /* No visibility filter, like an album: a tag's archived photos show too. */
+  function tagView(t) {
+    return assetView(view().tab, t.value || t.name,
+      function () { return new TimelineSource({ tagId: t.id, order: 'desc' }); },
+      { tagIds: [t.id] }, true, 'No photos with this tag');
+  }
+
+  /* Immich lists every folder that holds photos as a flat list of paths. They become a
+     tree of {name, path, children, hasPhotos}. The top folders every path shares
+     (e.g. /usr/src/app/upload/library) are skipped, so the first page shows real choices. */
+  function folderTree(paths) {
+    var root = { name: '', path: '', children: [], byName: {}, hasPhotos: false }, node, segs, i, j;
+    for (i = 0; i < paths.length; i++) {
+      segs = String(paths[i]).replace(/\/+$/, '').split('/');
+      node = root;
+      for (j = 0; j < segs.length; j++) {
+        if (!segs[j]) { continue; } // the empty part before a leading '/'
+        if (!Object.prototype.hasOwnProperty.call(node.byName, segs[j])) {
+          node.byName[segs[j]] = { name: segs[j], path: segs.slice(0, j + 1).join('/'), children: [], byName: {}, hasPhotos: false };
+          node.children.push(node.byName[segs[j]]);
+        }
+        node = node.byName[segs[j]];
+      }
+      node.hasPhotos = true;
+    }
+    while (root.children.length === 1 && !root.hasPhotos) { root = root.children[0]; }
+    sortFolders(root);
+    return root;
+  }
+
+  function sortFolders(node) {
+    var i;
+    node.children.sort(function (a, b) {
+      var x = a.name.toLowerCase(), y = b.name.toLowerCase();
+      return x < y ? -1 : (x > y ? 1 : 0);
+    });
+    for (i = 0; i < node.children.length; i++) { sortFolders(node.children[i]); }
+  }
+
+  function foldersView() {
+    return cardsView(view().tab, 'Folders', function (cb) {
+      client.folderPaths(function (err, paths) {
+        if (err) { return cb(err); }
+        if (!paths || !paths.length) { return cb(null, []); }
+        folderSections(folderTree(paths), cb);
+      });
+    }, 'No folders found. Folders come from where your photos are stored on the server.');
+  }
+
+  function folderView(node) {
+    return cardsView(view().tab, node.name, function (cb) { folderSections(node, cb); }, 'This folder is empty');
+  }
+
+  /* A folder's page: its subfolders, led by a "Photos in this folder" card when it
+     holds photos itself (fetched now for the cover and count). */
+  function folderSections(node, cb) {
+    var items = map(node.children, function (n) { return { kind: 'folder', node: n }; });
+    if (!node.hasPhotos) { return cb(null, [{ key: 'folders', items: items }]); }
+    folderAssets(node, function () { // on error the card still shows; opening it shows the error
+      items.unshift({ kind: 'folderPhotos', node: node });
+      cb(null, [{ key: 'folders', items: items }]);
+    });
+  }
+
+  /* Loads a folder's own photos once, newest first (date grouping expects that). */
+  function folderAssets(node, cb) {
+    if (node.assets) { return cb(null); }
+    client.folderAssets(node.path, function (err, list) {
+      if (err) { return cb(err); }
+      node.assets = list.sort(function (a, b) { return a.date < b.date ? 1 : (a.date > b.date ? -1 : 0); });
+      cb(null);
+    });
+  }
+
+  /* No random filter for a folder, so shuffle mixes the folder's own photos. */
+  function folderPhotosView(node) {
+    return assetView(view().tab, node.name || 'Folder', function () {
+      return new PagedSource(function (page, cb) {
+        folderAssets(node, function (err) { cb(err, node.assets, null); });
+      });
+    }, null, true, 'No photos in this folder');
+  }
+
+  /* Cards that open another page of cards rather than photos. */
+  function listForCard(it) {
+    switch (it.kind) {
+      case 'folders': return foldersView();
+      case 'tags': return tagsView();
+      case 'folder': return it.node.children.length ? folderView(it.node) : null;
+    }
+    return null;
   }
 
   /* The asset view a card opens. */
@@ -212,6 +348,10 @@
       case 'person': return personView(it.person);
       case 'place': return placeView(it.place);
       case 'memory': return staticView(view().tab, it.memory.title, it.memory.assets);
+      case 'archive': return archiveView();
+      case 'tag': return tagView(it.tag);
+      case 'folder': return it.node.hasPhotos ? folderPhotosView(it.node) : null; // Play: its own photos
+      case 'folderPhotos': return folderPhotosView(it.node);
     }
     return null;
   }
@@ -254,8 +394,24 @@
       case 'memory':
         return { shape: 'card', thumb: client.thumbUrl(it.memory.assets[0].id), label: it.memory.title,
           sub: it.memory.assets.length + (it.memory.assets.length === 1 ? ' photo' : ' photos') };
+      case 'tag': // "Places/Canada": the name big, its parents under it
+        a = String(it.tag.value || it.tag.name);
+        return { shape: 'card more', thumb: null, label: it.tag.name || a,
+          sub: a.lastIndexOf('/') > 0 ? a.substr(0, a.lastIndexOf('/')).replace(/\//g, ' / ') : 'Tag' };
+      case 'folder':
+        return { shape: 'card more', thumb: null, label: it.node.name, sub: folderSub(it.node) };
+      case 'folderPhotos':
+        a = it.node.assets;
+        return { shape: a && a.length ? 'card' : 'card more', thumb: a && a.length ? client.thumbUrl(a[0].id) : null,
+          label: 'Photos in this folder', sub: a ? a.length + (a.length === 1 ? ' item' : ' items') : '' };
     }
     return { shape: 'card more', thumb: null, label: it.label, sub: it.sub };
+  }
+
+  function folderSub(node) {
+    var n = node.children.length;
+    if (!n) { return 'Photos'; }
+    return n + (n === 1 ? ' folder' : ' folders') + (node.hasPhotos ? ' and photos' : '');
   }
 
   function setStatus(text) { U.$('status').textContent = text || ''; }
@@ -605,9 +761,11 @@
   }
 
   function select(item, index) {
-    var v = view();
+    var v = view(), list;
     if (v.kind === 'cards') {
       if (item.kind === 'more') { return push(item.open()); }
+      list = listForCard(item);
+      if (list) { return push(list); }
       return push(viewForCard(item));
     }
     openViewer(index, false);

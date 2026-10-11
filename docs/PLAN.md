@@ -66,11 +66,15 @@ More endpoints used for Explore, Search, Map and Favorites:
 | Search | `POST /api/search/smart {query, page}` (needs Immich's machine learning, which is on by default) |
 | Map | `GET /api/map/markers` (every located photo: id, lat, lon, city) |
 | Favorites | timeline calls with `isFavorite=true`; star with `PUT /api/assets {ids, isFavorite}` |
-| Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `city`, `isFavorite`) |
-| Stacks | timeline calls with `withStacked=true` (Photos, Favorites, albums, people): only a stack's primary photo comes back, and the bucket gains a `stack` column, `[stackId, count]` (count as a string) or null. Members via `GET /api/stacks/{id}` (`{id, primaryAssetId, assets}`) |
+| Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `tagIds`, `visibility`, `city`, `isFavorite`) |
+| Archive | timeline calls with `visibility=archive` (`asset.read`) |
+| Folders | `GET /api/view/folder/unique-paths` (every folder holding assets, as full paths; built into a tree in the app), a folder's own photos (not subfolders) from `GET /api/view/folder?path=...` as full asset objects, all at once (`folder.read`) |
+| Tags | `GET /api/tags` returns `[{id, name, value: 'Places/Canada', parentId}]` (`tag.read`), a tag's photos via the timeline calls with `tagId=...` |
+| Partner photos | timeline calls with `withPartners=true`. Immich refuses it unless `visibility=timeline` and there is no `isFavorite`/`isTrashed` filter, so only Photos uses it. `/search/random` has no `withPartners`, so shuffle on Photos keeps `{visibility: 'timeline'}` (Immich's search may already include partners shown in your timeline; not checked) |
+| Stacks | timeline calls with `withStacked=true`, on Photos only (under any other filter Immich would hide a stack's other photos, so they could vanish from an album, person, favorites or tag view): only a stack's primary photo comes back, and the bucket gains a `stack` column, `[stackId, count]` (count as a string) or null. Members via `GET /api/stacks/{id}` (`{id, primaryAssetId, assets}`) |
 | Library statistics | `GET /api/assets/statistics` (`{images, videos, total}`, your own assets, timeline and archive), `quotaUsageInBytes` / `quotaSizeInBytes` from `GET /api/users/me`, `GET /api/server/storage` (server disk). None are admin-only; `/server/statistics` is, so it isn't used |
 
-**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`, `stack.read`, `asset.statistics`, `server.storage`. A key with all permissions also works.
+**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`, `stack.read`, `folder.read`, `tag.read`, `asset.statistics`, `server.storage`. A key with all permissions also works.
 
 ## CORS: the open question
 

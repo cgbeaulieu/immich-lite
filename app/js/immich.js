@@ -148,6 +148,21 @@ var Immich = (function () {
   /* [{id, lat, lon, city}] for every photo with a location. */
   Client.prototype.mapMarkers = function (cb) { this.get('/map/markers', null, cb); };
 
+  // ---------- library: folders and tags ----------
+
+  /* Every folder that directly holds assets, as full paths: ['/photos/2024/Trip', ...]. */
+  Client.prototype.folderPaths = function (cb) { this.get('/view/folder/unique-paths', null, cb); };
+
+  /* The assets directly in one folder (not its subfolders), all in one answer. */
+  Client.prototype.folderAssets = function (path, cb) {
+    this.get('/view/folder', { path: path }, function (err, list) {
+      cb(err, err ? null : fromDtos(list || []));
+    });
+  };
+
+  /* [{id, name: 'Canada', value: 'Places/Canada' (full path), parentId}] */
+  Client.prototype.tags = function (cb) { this.get('/tags', null, cb); };
+
   // ---------- search ----------
 
   /* Smart (CLIP) search: cb(err, assets, nextPage) */
@@ -165,7 +180,7 @@ var Immich = (function () {
   };
 
   /* Random photos for shuffle. filter is a search filter such as
-     {visibility: 'timeline'}, {albumIds: [id]}, {personIds: [id]} or {city: 'Banff'}. */
+     {visibility: 'timeline'}, {albumIds: [id]}, {personIds: [id]}, {tagIds: [id]} or {city: 'Banff'}. */
   Client.prototype.randomPhotos = function (filter, count, cb) {
     var body = copy(filter);
     body.size = count;
