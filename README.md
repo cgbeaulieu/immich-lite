@@ -95,4 +95,4 @@ for f in app/js/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not 
 
 ## License
 
-TBD (intended: open source — likely MIT or GPL-3.0).
+[Mozilla Public License 2.0](LICENSE) (MPL-2.0).
