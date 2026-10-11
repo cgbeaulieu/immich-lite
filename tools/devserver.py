@@ -157,6 +157,10 @@ class Mock:
             return self.send({"id": "mock-user", "name": "Mock User", "email": "mock@example.test"})
         if path == "/api/albums":
             return self.send([self.album(i) for i in range(len(self.ALBUMS))])
+        if path.startswith("/api/timeline/") and self.partners_refused():
+            # Immich v3.3.1 (timeline.service.ts) refuses withPartners outside the plain timeline.
+            return self.h.send_json(400, {"message": "withPartners is only supported for non-archived, "
+                                                     "non-trashed, non-favorited assets", "statusCode": 400})
         if path == "/api/timeline/buckets":
             out = []
             for m in self.timeline_months():
@@ -183,6 +187,10 @@ class Mock:
                 pool = [a for a in pool if a["fav"]]
             if b.get("city"):
                 pool = [a for a in pool if self.city_name(a["id"]) == b["city"]]
+            if b.get("visibility") == "archive":
+                pool = self.archived()
+            if b.get("tagIds"):
+                pool = [a for a in self.all_assets() if all(self.has_tag(a["id"], t) for t in b["tagIds"])]
             if b.get("type"):
                 pool = [a for a in pool if a["img"] == (b["type"] == "IMAGE")]
             random.shuffle(pool)
@@ -223,6 +231,12 @@ class Mock:
                                 "lon": c[3] + (jitter // 100 % 100 - 50) / 900.0,
                                 "city": c[0], "state": None, "country": c[1]})
             return self.send(out)
+        if path == "/api/view/folder/unique-paths":
+            return self.send(sorted(self.FOLDERS))
+        if path == "/api/view/folder":
+            return self.send([self.dto(a) for a in self.folder_assets(self.arg("path") or "")])
+        if path == "/api/tags":
+            return self.send([self.tag(i) for i in range(len(self.TAGS))])
         if path.startswith("/api/assets/") and path.endswith("/thumbnail"):
             asset_id, big = path.split("/")[3], self.arg("size") == "preview"
             return self.svg(1440 if big else 250, 960 if big else 250,
@@ -252,12 +266,75 @@ class Mock:
         return self.MONTHS[:2] if (self.arg("albumId") or self.arg("personId")) else self.MONTHS
 
     def filtered(self, month):
+        if self.arg("visibility") == "archive":
+            return [a for a in self.archived() if a["date"][:7] == month]
         if month not in self.timeline_months():
             return []
         items = self.assets(month, bool(self.arg("albumId") or self.arg("personId")))
         if self.arg("isFavorite") == "true":
             items = [a for a in items if a["fav"]]
+        if self.arg("tagId"):
+            items = [a for a in items if self.has_tag(a["id"], self.arg("tagId"))]
+        if self.arg("withPartners") == "true":
+            items = sorted(items + self.partner_assets(month), key=lambda a: a["date"], reverse=True)
         return items
+
+    # ----- library: archive, folders, tags, partners -----
+
+    # Paths as Immich stores them; the shared /usr/src/app/upload/library/admin prefix
+    # is what the app's folder tree skips. 2024 holds photos and subfolders.
+    FOLDERS = ["/usr/src/app/upload/library/admin/2024",
+               "/usr/src/app/upload/library/admin/2024/2024-05 Banff",
+               "/usr/src/app/upload/library/admin/2024/2024-07 Lisbon",
+               "/usr/src/app/upload/library/admin/2025/Christmas",
+               "/usr/src/app/upload/library/admin/2025/Swim meet/Finals",
+               "/usr/src/app/upload/library/admin/Phone/Camera",
+               "/usr/src/app/upload/library/admin/Phone/Screenshots",
+               "/usr/src/app/upload/library/admin/Scans"]
+    TAGS = ["Family", "Places", "Places/Canada", "Places/Canada/Banff", "Places/Portugal", "Events/Hyrox"]
+
+    def partners_refused(self):
+        if self.arg("withPartners") != "true":
+            return False
+        return (self.arg("visibility") in (None, "archive") or self.arg("isFavorite") is not None
+                or self.arg("isTrashed") == "true")
+
+    def archived(self):
+        out = []
+        for m in ("2025-12", "2025-07"):
+            for i in range(7):
+                out.append({"id": "archived-%s-%d" % (m, i), "img": True, "fav": False,
+                            "date": "%s-%02dT12:00:00.000Z" % (m, 26 - i * 3)})
+        return out
+
+    def partner_assets(self, month):
+        if month not in self.MONTHS[:3]:
+            return []
+        return [{"id": "partner-%s-%d" % (month, i), "img": True, "fav": False,
+                 "date": "%s-%02dT18:00:00.000Z" % (month, 25 - i * 5)} for i in range(5)]
+
+    @staticmethod
+    def tag_id(i):
+        return "00000000-0000-4000-8000-%012d" % (i + 1)
+
+    def tag(self, i):
+        value = self.TAGS[i]
+        parent = value.rsplit("/", 1)[0] if "/" in value else None
+        out = {"id": self.tag_id(i), "name": value.rsplit("/", 1)[-1], "value": value,
+               "createdAt": "2026-01-01T00:00:00.000Z", "updatedAt": "2026-01-01T00:00:00.000Z"}
+        if parent in self.TAGS:
+            out["parentId"] = self.tag_id(self.TAGS.index(parent))
+        return out
+
+    def has_tag(self, asset_id, tag_id):
+        return int(hashlib.md5((tag_id + asset_id).encode()).hexdigest(), 16) % 6 == 0
+
+    def folder_assets(self, path):
+        if path not in self.FOLDERS:
+            return []
+        month = self.MONTHS[self.FOLDERS.index(path) % len(self.MONTHS)]
+        n = 4 + int(hashlib.md5(path.encode()).hexdigest(), 16) % 12
+        return self.assets(month)[:n]
 
     def city_of(self, asset_id):
         h = int(hashlib.md5(("place" + asset_id).encode()).hexdigest(), 16)

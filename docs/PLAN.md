@@ -66,9 +66,13 @@ More endpoints used for Explore, Search, Map and Favorites:
 | Search | `POST /api/search/smart {query, page}` (needs Immich's machine learning, which is on by default) |
 | Map | `GET /api/map/markers` (every located photo: id, lat, lon, city) |
 | Favorites | timeline calls with `isFavorite=true`; star with `PUT /api/assets {ids, isFavorite}` |
-| Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `city`, `isFavorite`) |
+| Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `tagIds`, `visibility`, `city`, `isFavorite`) |
+| Archive | timeline calls with `visibility=archive` (`asset.read`) |
+| Folders | `GET /api/view/folder/unique-paths` (every folder holding assets, as full paths; built into a tree in the app), a folder's own photos (not subfolders) from `GET /api/view/folder?path=...` as full asset objects, all at once (`folder.read`) |
+| Tags | `GET /api/tags` returns `[{id, name, value: 'Places/Canada', parentId}]` (`tag.read`), a tag's photos via the timeline calls with `tagId=...` |
+| Partner photos | timeline calls with `withPartners=true`. Immich refuses it unless `visibility=timeline` and there is no `isFavorite`/`isTrashed` filter, so only Photos uses it. `/search/random` has no `withPartners`, so shuffle on Photos keeps `{visibility: 'timeline'}` (Immich's search may already include partners shown in your timeline; not checked) |
 
-**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`. A key with all permissions also works.
+**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`, `folder.read`, `tag.read`. A key with all permissions also works.
 
 ## CORS: the open question
 

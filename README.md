@@ -21,13 +21,13 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | Tab | What it does |
 |---|---|
 | **Photos** | Your timeline, grouped by day (or month) like Immich's web app, loaded a month at a time |
-| **Explore** | "On this day" memories, People (face recognition) and Places (cities) |
+| **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
 | **Map** | Your photos on an OpenStreetMap map, grouped into bubbles |
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
-| **Settings** | Slideshow speed and order, grouping, thumbnail size, hide videos, change server, sign out |
-| **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place) |
+| **Settings** | Slideshow speed and order, grouping, thumbnail size, hide videos, include partner photos in Photos, change server, sign out |
+| **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place/tag/archive) |
 
 ## Remote keys
 
@@ -43,7 +43,7 @@ The Magic Remote pointer works too: point to focus, click to open, and on the ma
 ## API key permissions
 
 Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
-`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites), `album.read`, `person.read`, `memory.read`, `map.read`.
+`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites), `album.read`, `person.read`, `memory.read`, `map.read`, `folder.read` (Folders), `tag.read` (Tags).
 
 ## Target / constraints
 
