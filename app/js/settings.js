@@ -7,6 +7,8 @@ var Settings = (function () {
       text: function (v) { return v + ' seconds'; } },
     { key: 'slideOrder', label: 'Slideshow order', values: ['inorder', 'shuffle'], def: 'inorder',
       text: function (v) { return v === 'shuffle' ? 'Shuffle' : 'In order'; } },
+    { key: 'groupBy', label: 'Group photos by', values: ['day', 'month', 'off'], def: 'day',
+      text: function (v) { return v === 'day' ? 'Day' : (v === 'month' ? 'Month' : 'No grouping'); } },
     { key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large'], def: 'medium',
       text: function (v) { return v.charAt(0).toUpperCase() + v.substr(1); } },
     { key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
@@ -83,6 +85,14 @@ var Settings = (function () {
       r = rows[i];
       U.toggleClass(r.el, 'focused', active && i === focus);
       if (r.opt) { r.el.lastChild.textContent = '‹  ' + r.opt.text(get(r.opt.key)) + '  ›'; }
+    }
+    // Keep the focused row on screen (the list is taller than a 720p screen).
+    r = rows[focus];
+    if (active && r) {
+      if (r.el.offsetTop - 24 < box.scrollTop) { box.scrollTop = focus === 0 ? 0 : r.el.offsetTop - 24; }
+      else if (r.el.offsetTop + r.el.offsetHeight + 24 > box.scrollTop + box.clientHeight) {
+        box.scrollTop = r.el.offsetTop + r.el.offsetHeight + 24 - box.clientHeight;
+      }
     }
   }
 

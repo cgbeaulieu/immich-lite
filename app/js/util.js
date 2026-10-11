@@ -20,6 +20,44 @@ var U = {
   hide: function (el) { U.addClass(el, 'hidden'); },
 
   MONTHS: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+  MONTHS_LONG: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+    'September', 'October', 'November', 'December'],
+  WEEKDAYS: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+
+  pad2: function (n) { return n < 10 ? '0' + n : String(n); },
+
+  /* The local calendar day ("2024-05-03") a photo was taken: Immich gives the UTC
+     time plus the offset of the place it was taken. */
+  localDay: function (iso, offsetHours) {
+    var t = iso ? Date.parse(iso) : NaN, d;
+    if (isNaN(t)) { return iso ? String(iso).substr(0, 10) : ''; }
+    d = new Date(t + (offsetHours || 0) * 3600000);
+    return d.getUTCFullYear() + '-' + U.pad2(d.getUTCMonth() + 1) + '-' + U.pad2(d.getUTCDate());
+  },
+
+  /* "2026-09-28" -> "Mon, Sep 28, 2026" */
+  fmtDayHeader: function (day) {
+    var d;
+    if (!day || day.length < 10) { return ''; }
+    d = new Date(Date.UTC(parseInt(day.substr(0, 4), 10), parseInt(day.substr(5, 2), 10) - 1, parseInt(day.substr(8, 2), 10)));
+    return U.WEEKDAYS[d.getUTCDay()] + ', ' + U.MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
+  },
+
+  /* "2026-09" -> "September 2026" */
+  fmtMonthLong: function (month) {
+    if (!month || month.length < 7) { return ''; }
+    return U.MONTHS_LONG[parseInt(month.substr(5, 2), 10) - 1] + ' ' + month.substr(0, 4);
+  },
+
+  /* A shuffled copy (Fisher-Yates). */
+  shuffled: function (list) {
+    var a = list.slice(), i, j, t;
+    for (i = a.length - 1; i > 0; i--) {
+      j = Math.floor(Math.random() * (i + 1));
+      t = a[i]; a[i] = a[j]; a[j] = t;
+    }
+    return a;
+  },
 
   /* Immich dates are ISO strings ("2024-05-03T12:00:00.000Z"). Slice them by
      hand: Date parsing and toLocaleDateString are unreliable on old engines. */

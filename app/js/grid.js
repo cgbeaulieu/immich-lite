@@ -1,66 +1,105 @@
-/* Focusable thumbnail grid with lazy image loading.
-   No IntersectionObserver on the old engine, so what's on screen is worked out
-   from scrollTop and the row height. Images far off screen are released again to
-   keep memory down on the TV. */
+/* Focusable thumbnail grid with titled sections and lazy image loading.
+
+   Items are split into sections (a day in the timeline, "People" on Explore...).
+   Like Immich's web timeline, a section smaller than a row is packed beside its
+   neighbours instead of taking a whole row. Up/down navigation therefore works on
+   screen rows (tiles sharing a top edge), picking the nearest tile by position.
+
+   No IntersectionObserver on the old engine: what's on screen is worked out from
+   scrollTop and tile offsets. Images far off screen are released again to keep
+   memory down on the TV. */
 var Grid = (function () {
   'use strict';
 
   var BLANK = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-  var AHEAD_ROWS = 4;   // rows above/below the viewport to load
-  var KEEP_ROWS = 20;   // loaded rows further than this past the load window are released
-  var MORE_ROWS = 3;    // ask for more items when the viewport is this close to the end
+  var LOAD_SCREENS = 1;   // load images this many screens above and below the view
+  var KEEP_SCREENS = 4;   // release loaded images further away than this
+  var MORE_SCREENS = 1.5; // ask for more items when the end is this close
 
   function Grid(box, opts) {
     var self = this, pending = null;
     this.box = box;
     this.opts = opts || {};
-    this.render = null;
-    this.items = [];
-    this.tiles = [];
-    this.loaded = {};
-    this.focus = 0;
-    this.cols = 1;
-    this.rowH = 1;
-    this.active = false;
+    this.reset(null);
 
     // Magic Remote wheel / pointer scrolling. Throttled: old TVs choke on per-pixel work.
     box.addEventListener('scroll', function () {
       if (pending) { return; }
       pending = setTimeout(function () { pending = null; self.hydrate(); }, 120);
     }, false);
-    window.addEventListener('resize', function () { self.measure(); self.hydrate(); }, false);
+    window.addEventListener('resize', function () {
+      var i;
+      for (i = 0; i < self.sections.length; i++) { self.size(self.sections[i]); }
+      self.layout();
+      self.hydrate();
+    }, false);
   }
 
-  /* render(item) -> {thumb: url|null, badge: string, label: string, sub: string} */
+  /* render(item) -> {thumb, badge, label, sub, shape: 'photo' | 'card' | 'person'} */
   Grid.prototype.reset = function (render) {
     this.box.innerHTML = '';
     this.box.scrollTop = 0;
     this.render = render;
     this.items = [];
     this.tiles = [];
+    this.sections = [];   // {key, el, start, count}
+    this.secOf = [];      // item index -> section index
+    this.rows = [];       // screen rows: {start, end, top}
+    this.rowOf = [];      // item index -> row index
     this.loaded = {};
     this.focus = 0;
+    this.active = !!this.active;
   };
 
-  Grid.prototype.append = function (items) {
-    var frag = document.createDocumentFragment(), start = this.items.length, i, tile;
+  /* Adds items to the end. Items with a different key from the last section start a
+     new section, titled with title (no title: just a new row). */
+  Grid.prototype.append = function (items, key, title) {
+    var frag = document.createDocumentFragment(), last = this.sections[this.sections.length - 1];
+    var i, tile, el, header;
+    if (!items.length) { return; }
+    if (!last || (key !== undefined && key !== last.key)) {
+      el = document.createElement('div');
+      el.className = 'section';
+      if (title) {
+        header = document.createElement('div');
+        header.className = 'section-title';
+        header.textContent = title;
+        el.appendChild(header);
+      }
+      this.box.appendChild(el);
+      last = { key: key, el: el, start: this.items.length, count: 0 };
+      this.sections.push(last);
+    }
     for (i = 0; i < items.length; i++) {
-      tile = this.makeTile(items[i], start + i);
+      tile = this.makeTile(items[i], this.items.length);
       frag.appendChild(tile);
+      this.secOf.push(this.sections.length - 1);
       this.items.push(items[i]);
       this.tiles.push(tile);
     }
-    this.box.appendChild(frag);
-    this.measure();
+    last.count += items.length;
+    last.el.appendChild(frag);
+    this.size(last);
+    this.layout();
     this.hydrate();
+  };
+
+  /* A section narrower than a full row shrinks to its tiles so the next one can sit
+     beside it; anything wider takes the full width. */
+  Grid.prototype.size = function (s) {
+    var t = this.tiles[s.start], bs = window.getComputedStyle(this.box), cs = window.getComputedStyle(t);
+    var inner = this.box.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
+    var outer = t.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight);
+    var perRow = Math.max(1, Math.floor(inner / outer));
+    s.el.style.width = s.count < perRow ? (s.count * outer + 'px') : '100%';
   };
 
   Grid.prototype.makeTile = function (item, index) {
     var self = this, r = this.render(item);
     var tile = document.createElement('div');
     var img = document.createElement('img');
-    var el;
-    tile.className = 'tile';
+    var el, sub;
+    tile.className = 'tile ' + (r.shape || 'photo');
     img.className = 'thumb';
     img.src = BLANK;
     img.setAttribute('data-src', r.thumb || '');
@@ -73,12 +112,11 @@ var Grid = (function () {
       tile.appendChild(el);
     }
     if (r.label) {
-      tile.className += ' labelled';
       el = document.createElement('div');
       el.className = 'label';
       el.textContent = r.label;
       if (r.sub) {
-        var sub = document.createElement('span');
+        sub = document.createElement('span');
         sub.className = 'sub';
         sub.textContent = r.sub;
         el.appendChild(sub);
@@ -97,42 +135,62 @@ var Grid = (function () {
     return tile;
   };
 
-  Grid.prototype.measure = function () {
-    var t = this.tiles[0], cs, box, width;
-    if (!t) { return; }
-    cs = window.getComputedStyle(t);
-    box = window.getComputedStyle(this.box);
-    width = this.box.clientWidth - parseFloat(box.paddingLeft) - parseFloat(box.paddingRight);
-    this.cols = Math.max(1, Math.floor(width / (t.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight))));
-    this.rowH = Math.max(1, t.offsetHeight + parseFloat(cs.marginTop) + parseFloat(cs.marginBottom));
+  /* Rebuilds the screen rows: runs of tiles with the same top edge. Tiles flow in
+     order, so their tops never go back up. */
+  Grid.prototype.layout = function () {
+    var top = null, row = null, i, t;
+    this.rows = [];
+    this.rowOf = [];
+    for (i = 0; i < this.tiles.length; i++) {
+      t = this.tiles[i].offsetTop;
+      if (t !== top) {
+        row = { start: i, end: i + 1, top: t, bottom: t + this.tiles[i].offsetHeight };
+        this.rows.push(row);
+        top = t;
+      } else {
+        row.end = i + 1;
+      }
+      this.rowOf[i] = this.rows.length - 1;
+    }
+  };
+
+  /* First row reaching below y. */
+  Grid.prototype.rowAt = function (y) {
+    var lo = 0, hi = this.rows.length - 1, mid;
+    while (lo < hi) {
+      mid = (lo + hi) >> 1;
+      if (this.rows[mid].bottom < y) { lo = mid + 1; } else { hi = mid; }
+    }
+    return lo;
   };
 
   Grid.prototype.hydrate = function () {
-    var n = this.tiles.length, top, first, last, i, img, src, k, row, totalRows;
-    if (!n) { return; }
-    top = this.box.scrollTop;
-    first = Math.max(0, Math.floor(top / this.rowH) - AHEAD_ROWS);
-    last = Math.ceil((top + this.box.clientHeight) / this.rowH) + AHEAD_ROWS;
+    var h = this.box.clientHeight, top = this.box.scrollTop, r, i, img, src, k, t, lastTile;
+    var from = top - h * LOAD_SCREENS, to = top + h * (1 + LOAD_SCREENS);
+    if (!this.rows.length || !h) { return; }
 
-    for (i = first * this.cols; i < Math.min(n, (last + 1) * this.cols); i++) {
-      if (!this.loaded[i]) {
-        img = this.tiles[i].firstChild;
-        src = img.getAttribute('data-src');
-        if (src) { img.src = src; this.loaded[i] = true; }
+    for (r = this.rowAt(from); r < this.rows.length; r++) {
+      if (this.rows[r].top > to) { break; }
+      for (i = this.rows[r].start; i < this.rows[r].end; i++) {
+        if (!this.loaded[i]) {
+          img = this.tiles[i].firstChild;
+          src = img.getAttribute('data-src');
+          if (src) { img.src = src; this.loaded[i] = true; }
+        }
       }
     }
     for (k in this.loaded) {
       if (this.loaded.hasOwnProperty(k)) {
-        row = Math.floor(k / this.cols);
-        if (row < first - KEEP_ROWS || row > last + KEEP_ROWS) {
-          this.tiles[k].firstChild.src = BLANK;
+        t = this.tiles[k];
+        if (t.offsetTop < top - h * KEEP_SCREENS || t.offsetTop > top + h * (1 + KEEP_SCREENS)) {
+          t.firstChild.src = BLANK;
           delete this.loaded[k];
         }
       }
     }
 
-    totalRows = Math.ceil(n / this.cols);
-    if (last - AHEAD_ROWS >= totalRows - MORE_ROWS && this.opts.onNeedMore) { this.opts.onNeedMore(); }
+    lastTile = this.tiles[this.tiles.length - 1];
+    if (lastTile.offsetTop < top + h * (1 + MORE_SCREENS) && this.opts.onNeedMore) { this.opts.onNeedMore(); }
   };
 
   Grid.prototype.setActive = function (on) {
@@ -151,8 +209,10 @@ var Grid = (function () {
   };
 
   Grid.prototype.reveal = function (i) {
-    var t = this.tiles[i], box = this.box, pad = 24;
-    var top = t.offsetTop - pad, bottom = t.offsetTop + t.offsetHeight + pad;
+    var t = this.tiles[i], box = this.box, pad = 24, s = this.sections[this.secOf[i]];
+    // On a section's first row, bring its title into view too.
+    var top = (t.offsetTop === this.tiles[s.start].offsetTop ? s.el.offsetTop : t.offsetTop) - pad;
+    var bottom = t.offsetTop + t.offsetHeight + pad;
     if (top < box.scrollTop) {
       box.scrollTop = top;
     } else if (bottom > box.scrollTop + box.clientHeight) {
@@ -161,25 +221,35 @@ var Grid = (function () {
     this.hydrate(); // the scroll handler is throttled; load straight away for key presses
   };
 
+  /* Moves focus by screen rows, to the tile nearest the current one sideways. */
+  Grid.prototype.moveRows = function (delta) {
+    var r = this.rowOf[this.focus], target = r + delta, row, cur, x, best, bestD = Infinity, d, i, t;
+    if (target < 0 || target >= this.rows.length) {
+      if (delta > 0 && r < this.rows.length - 1) { target = this.rows.length - 1; } else { return false; }
+    }
+    cur = this.tiles[this.focus];
+    x = cur.offsetLeft + cur.offsetWidth / 2;
+    row = this.rows[target];
+    for (i = row.start; i < row.end; i++) {
+      t = this.tiles[i];
+      d = Math.abs(t.offsetLeft + t.offsetWidth / 2 - x);
+      if (d < bestD) { bestD = d; best = i; }
+    }
+    this.setFocus(best);
+    return true;
+  };
+
   /* Returns true if the key was used. Up from the top row is left to the caller. */
   Grid.prototype.key = function (k) {
-    var f = this.focus, c = this.cols, n = this.tiles.length;
+    var f = this.focus, n = this.tiles.length;
     if (!n) { return false; }
     switch (k) {
       case KEY.LEFT: if (f > 0) { this.setFocus(f - 1); } return true;
       case KEY.RIGHT: if (f < n - 1) { this.setFocus(f + 1); } return true;
-      case KEY.UP:
-        if (f - c >= 0) { this.setFocus(f - c); return true; }
-        return false;
-      case KEY.DOWN:
-        if (f + c < n) {
-          this.setFocus(f + c);
-        } else if (Math.floor(f / c) < Math.floor((n - 1) / c)) {
-          this.setFocus(n - 1); // short last row
-        }
-        return true;
-      case KEY.CH_UP: this.setFocus(f - c * 3); return true;
-      case KEY.CH_DOWN: this.setFocus(f + c * 3); return true;
+      case KEY.UP: return this.moveRows(-1);
+      case KEY.DOWN: this.moveRows(1); return true;
+      case KEY.CH_UP: if (!this.moveRows(-3)) { this.setFocus(0); } return true;
+      case KEY.CH_DOWN: this.moveRows(3); return true;
       case KEY.OK:
         if (this.opts.onSelect) { this.opts.onSelect(this.items[f], f); }
         return true;

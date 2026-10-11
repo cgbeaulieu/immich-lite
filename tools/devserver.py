@@ -112,12 +112,24 @@ class Server(http.server.ThreadingHTTPServer):
         super().server_bind()
 
 
+FAVORITES = {}  # asset id -> bool, set through PUT /api/assets while the mock runs
+
+
 class Mock:
     """A small fake Immich library, shaped like the v3.3.1 API responses."""
 
     MONTHS = ["2026-09", "2026-08", "2026-06", "2026-05", "2025-12", "2025-07"]
     ALBUMS = ["Summer 2026", "Hyrox race day", "Cabin weekend", "Birthdays", "Garden",
               "Road trip", "Swim meet", "Snow day", "Camping", "First steps"]
+    PEOPLE = ["Alex", "Sam", "Jordan", "", "Riley", "Casey", "", "Morgan", "Taylor", "Jamie",
+              "Avery", "Quinn", "Drew", "Parker", "Reese"]
+    CITIES = [("Calgary", "Canada", 51.05, -114.07), ("Banff", "Canada", 51.18, -115.57),
+              ("Kalispell", "United States", 48.20, -114.31), ("Mexico City", "Mexico", 19.43, -99.13),
+              ("Vancouver", "Canada", 49.28, -123.12), ("Whitefish", "United States", 48.41, -114.34),
+              ("Canmore", "Canada", 51.09, -115.36), ("Seattle", "United States", 47.61, -122.33),
+              ("Toronto", "Canada", 43.65, -79.38), ("Lisbon", "Portugal", 38.72, -9.14),
+              ("Tokyo", "Japan", 35.68, 139.69), ("Sydney", "Australia", -33.87, 151.21),
+              ("Reykjavik", "Iceland", 64.15, -21.94), ("Cancun", "Mexico", 21.16, -86.85)]
 
     def __init__(self, handler):
         self.h = handler
@@ -126,43 +138,158 @@ class Mock:
     def arg(self, name):
         return (self.query.get(name) or [None])[0]
 
+    def body(self):
+        length = int(self.h.headers.get("Content-Length") or 0)
+        return json.loads(self.h.rfile.read(length) or b"{}")
+
+    def send(self, data):
+        return self.h.send_json(200, data)
+
     def handle(self, method, path):
         if path == "/api/server/ping":
-            return self.h.send_json(200, {"res": "pong"})
+            return self.send({"res": "pong"})
         if path == "/api/server/version":
-            return self.h.send_json(200, {"major": 3, "minor": 3, "patch": 1, "prerelease": None})
+            return self.send({"major": 3, "minor": 3, "patch": 1, "prerelease": None})
         if not (self.arg("apiKey") or self.h.headers.get("x-api-key")):
             return self.h.send_json(401, {"message": "Authentication required", "statusCode": 401})
+
         if path == "/api/users/me":
-            return self.h.send_json(200, {"id": "mock-user", "name": "Mock User", "email": "mock@example.test"})
+            return self.send({"id": "mock-user", "name": "Mock User", "email": "mock@example.test"})
         if path == "/api/albums":
-            return self.h.send_json(200, [self.album(i) for i in range(len(self.ALBUMS))])
+            return self.send([self.album(i) for i in range(len(self.ALBUMS))])
         if path == "/api/timeline/buckets":
-            months = self.MONTHS[:2] if self.arg("albumId") else self.MONTHS
-            return self.h.send_json(200, [{"timeBucket": m + "-01T00:00:00.000Z", "count": self.count(m)}
-                                          for m in months])
+            out = []
+            for m in self.timeline_months():
+                n = len(self.filtered(m))
+                if n:
+                    out.append({"timeBucket": m + "-01T00:00:00.000Z", "count": n})
+            return self.send(out)
         if path == "/api/timeline/bucket":
-            return self.h.send_json(200, self.bucket(self.arg("timeBucket") or "", self.arg("albumId")))
+            return self.send(self.columns(self.filtered((self.arg("timeBucket") or "")[:7])))
+        if path == "/api/assets" and method == "PUT":
+            b = self.body()
+            for asset_id in b.get("ids", []):
+                if "isFavorite" in b:
+                    FAVORITES[asset_id] = bool(b["isFavorite"])
+            self.h.send_response(204)
+            self.h.send_header("Content-Length", "0")
+            self.h.end_headers()
+            return None
         if path == "/api/search/random" and method == "POST":
-            length = int(self.h.headers.get("Content-Length") or 0)
-            body = json.loads(self.h.rfile.read(length) or b"{}")
-            months = self.MONTHS[:2] if body.get("albumIds") else self.MONTHS
-            pool = []
-            for m in months:
-                b = self.bucket(m + "-01T00:00:00.000Z", body.get("albumIds"))
-                pool += [{"id": i, "type": "IMAGE" if img else "VIDEO", "fileCreatedAt": d, "localDateTime": d}
-                         for i, img, d in zip(b["id"], b["isImage"], b["fileCreatedAt"])]
-            if body.get("type"):
-                pool = [a for a in pool if a["type"] == body["type"]]
+            b = self.body()
+            small = bool(b.get("albumIds") or b.get("personIds"))
+            pool = [a for m in (self.MONTHS[:2] if small else self.MONTHS) for a in self.assets(m, small)]
+            if b.get("isFavorite"):
+                pool = [a for a in pool if a["fav"]]
+            if b.get("city"):
+                pool = [a for a in pool if self.city_name(a["id"]) == b["city"]]
+            if b.get("type"):
+                pool = [a for a in pool if a["img"] == (b["type"] == "IMAGE")]
             random.shuffle(pool)
-            return self.h.send_json(200, pool[:min(int(body.get("size", 250)), 1000)])
+            return self.send([self.dto(a) for a in pool[:min(int(b.get("size", 250)), 1000)]])
+        if path == "/api/people":
+            people = [{"id": "person-%d" % i, "name": n, "isHidden": False, "thumbnailPath": "x", "birthDate": None,
+                       "otherPeople": [], "sharedBy": [], "sharedWith": []} for i, n in enumerate(self.PEOPLE)]
+            return self.send({"people": people, "total": len(people), "hidden": 0, "hasNextPage": False})
+        if path.startswith("/api/people/") and path.endswith("/thumbnail"):
+            i = int(path.split("/")[3].split("-")[1])
+            return self.svg(180, 180, i * 47 % 360, self.PEOPLE[i][:1] or "?", 72)
+        if path == "/api/search/cities":
+            return self.send([{"id": "%s-0-%d" % (self.MONTHS[i % 6], i), "type": "IMAGE",
+                               "exifInfo": {"city": c[0], "country": c[1]}} for i, c in enumerate(self.CITIES)])
+        if path == "/api/search/metadata" and method == "POST":
+            b = self.body()
+            return self.page([a for a in self.all_assets() if self.city_name(a["id"]) == b.get("city")], b)
+        if path == "/api/search/smart" and method == "POST":
+            b = self.body()
+            q = (b.get("query") or "").lower()
+            return self.page([a for a in self.all_assets()
+                              if int(hashlib.md5((q + a["id"]).encode()).hexdigest(), 16) % 4 == 0], b)
+        if path == "/api/memories":
+            last_year = self.assets("2025-07")[:12]
+            older = [{"id": "2023-10-0-%d" % i, "img": True, "fav": False,
+                      "date": "2023-10-%02dT12:00:00.000Z" % (11 - i % 3)} for i in range(7)]
+            return self.send([
+                {"id": "memory-1", "type": "on_this_day", "data": {"year": 2025}, "assets": [self.dto(a) for a in last_year]},
+                {"id": "memory-2", "type": "on_this_day", "data": {"year": 2023}, "assets": [self.dto(a) for a in older]},
+            ])
+        if path == "/api/map/markers":
+            out = []
+            for a in self.all_assets():
+                c = self.city_of(a["id"])
+                if c:
+                    jitter = int(hashlib.md5(a["id"].encode()).hexdigest(), 16)
+                    out.append({"id": a["id"], "lat": c[2] + (jitter % 100 - 50) / 900.0,
+                                "lon": c[3] + (jitter // 100 % 100 - 50) / 900.0,
+                                "city": c[0], "state": None, "country": c[1]})
+            return self.send(out)
         if path.startswith("/api/assets/") and path.endswith("/thumbnail"):
-            return self.thumbnail(path.split("/")[3], self.arg("size") or "thumbnail")
+            asset_id, big = path.split("/")[3], self.arg("size") == "preview"
+            return self.svg(1440 if big else 250, 960 if big else 250,
+                            int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 64 if big else 22)
         return self.h.send_json(404, {"message": "Not mocked: " + path, "statusCode": 404})
+
+    # ----- fake library -----
 
     @staticmethod
     def count(month):
         return 20 + int(hashlib.md5(month.encode()).hexdigest(), 16) % 60
+
+    def assets(self, month, small=False):
+        n = 9 if small else self.count(month)
+        out = []
+        for i in range(n):
+            asset_id = "%s-%d-%d" % (month, i // 10, i)
+            out.append({"id": asset_id, "img": i % 11 != 5,
+                        "fav": FAVORITES.get(asset_id, i % 7 == 3),
+                        "date": "%s-%02dT12:00:00.000Z" % (month, 28 - (i * 27 // max(n, 1)))})
+        return out
+
+    def all_assets(self):
+        return [a for m in self.MONTHS for a in self.assets(m)]
+
+    def timeline_months(self):
+        return self.MONTHS[:2] if (self.arg("albumId") or self.arg("personId")) else self.MONTHS
+
+    def filtered(self, month):
+        if month not in self.timeline_months():
+            return []
+        items = self.assets(month, bool(self.arg("albumId") or self.arg("personId")))
+        if self.arg("isFavorite") == "true":
+            items = [a for a in items if a["fav"]]
+        return items
+
+    def city_of(self, asset_id):
+        h = int(hashlib.md5(("place" + asset_id).encode()).hexdigest(), 16)
+        return self.CITIES[h % len(self.CITIES)] if h % 10 < 7 else None
+
+    def city_name(self, asset_id):
+        c = self.city_of(asset_id)
+        return c[0] if c else None
+
+    @staticmethod
+    def columns(items):
+        n = len(items)
+        return {
+            "id": [a["id"] for a in items], "isImage": [a["img"] for a in items],
+            "isFavorite": [a["fav"] for a in items], "fileCreatedAt": [a["date"] for a in items],
+            "ratio": [1.5] * n, "createdAt": [None] * n, "duration": [None] * n, "isTrashed": [False] * n,
+            "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n, "ownerId": ["mock-user"] * n,
+            "projectionType": [None] * n, "thumbhash": [None] * n, "visibility": ["timeline"] * n,
+        }
+
+    @staticmethod
+    def dto(a):
+        return {"id": a["id"], "type": "IMAGE" if a["img"] else "VIDEO", "isFavorite": a["fav"],
+                "fileCreatedAt": a["date"], "localDateTime": a["date"]}
+
+    def page(self, items, body):
+        page, size = int(body.get("page") or 1), int(body.get("size") or 100)
+        chunk = items[(page - 1) * size:page * size]
+        more = page * size < len(items)
+        return self.send({"albums": {"items": [], "count": 0, "total": 0, "facets": []},
+                          "assets": {"items": [self.dto(a) for a in chunk], "count": len(chunk), "total": len(items),
+                                     "facets": [], "nextPage": str(page + 1) if more else None}})
 
     def album(self, i):
         return {"id": "album-%d" % i, "albumName": self.ALBUMS[i], "assetCount": 12 + i * 7,
@@ -170,29 +297,12 @@ class Mock:
                 "updatedAt": "2026-%02d-01T00:00:00.000Z" % (10 - i % 9),
                 "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9)}
 
-    def bucket(self, time_bucket, album_id):
-        month = time_bucket[:7]
-        n = 9 if album_id else self.count(month)
-        ids = ["%s-%d-%d" % (month, i // 10, i) for i in range(n)]
-        return {
-            "id": ids,
-            "isImage": [i % 11 != 5 for i in range(n)],
-            "ratio": [1.5] * n,
-            "fileCreatedAt": ["%s-%02dT12:00:00.000Z" % (month, 28 - (i * 27 // max(n, 1))) for i in range(n)],
-            "createdAt": [None] * n, "duration": [None] * n, "isFavorite": [False] * n,
-            "isTrashed": [False] * n, "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n,
-            "ownerId": ["mock-user"] * n, "projectionType": [None] * n, "thumbhash": [None] * n,
-            "visibility": ["timeline"] * n,
-        }
-
-    def thumbnail(self, asset_id, size):
-        hue = int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360
-        w, h = (1440, 960) if size == "preview" else (250, 250)
+    def svg(self, w, h, hue, text, font_size):
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d">'
                '<rect width="100%%" height="100%%" fill="hsl(%d,45%%,38%%)"/>'
                '<text x="50%%" y="50%%" fill="#fff" font-family="Arial" font-size="%d" '
                'text-anchor="middle" dominant-baseline="middle">%s</text></svg>'
-               % (w, h, hue, 64 if size == "preview" else 22, asset_id))
+               % (w, h, hue, font_size, text))
         raw = svg.encode("utf-8")
         self.h.send_response(200)
         self.h.send_header("Content-Type", "image/svg+xml")

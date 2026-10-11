@@ -13,25 +13,47 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 ## Status: 🌱 pre-alpha
 
 - Target engine confirmed: **Chrome 38** (read from the TV over root SSH). The code is strict ES5.
-- Working in a browser: API-key setup, timeline grid (loaded a month at a time, images lazy-loaded), albums, full-screen viewer with slideshow, arrow-key and Magic Remote navigation.
+- Working in a browser (tested against a mock library), not yet run on the TV itself.
 - Not done yet: IPK packaging and the first run on the TV, which will show whether CORS blocks the packaged app. See [docs/PLAN.md](docs/PLAN.md).
+
+## Features
+
+| Tab | What it does |
+|---|---|
+| **Photos** | Your timeline, grouped by day (or month) like Immich's web app, loaded a month at a time |
+| **Explore** | "On this day" memories, People (face recognition) and Places (cities) |
+| **Map** | Your photos on an OpenStreetMap map, grouped into bubbles |
+| **Favorites** | Photos you've starred |
+| **Albums** | Your albums and albums shared with you |
+| **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
+| **Settings** | Slideshow speed and order, grouping, thumbnail size, hide videos, change server, sign out |
+| **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place) |
+
+## Remote keys
+
+| Where | Keys |
+|---|---|
+| Anywhere | Arrows move, OK opens, Back goes back, **Play** starts a slideshow of what's focused |
+| Photo grids | CH+/CH- jump three rows |
+| Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, ▼ hide info |
+| Map | Arrows move, CH+/CH- zoom, OK opens the bubble under the crosshair |
+
+The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
+
+## API key permissions
+
+Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
+`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites), `album.read`, `person.read`, `memory.read`, `map.read`.
 
 ## Target / constraints
 
 - **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"). Rooted, Homebrew Channel installed.
 - **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid.
-- **Server:** self-hosted Immich via its REST API. The server must send permissive **CORS** headers (webOS < 10 enforces CORS).
+- **Server:** self-hosted Immich v3 via its REST API. Immich sends no CORS headers; whether the packaged app needs them is still to be tested (see docs/PLAN.md).
 - **Install:** packaged as an IPK, sideloaded via Homebrew Channel / dev mode.
+- **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
 
-## MVP (v1) scope — photos first
-
-1. API-key (or login) auth to the user's Immich server
-2. Timeline / album **thumbnail grid**, lazy-loaded
-3. **Full-screen photo viewer** + simple slideshow
-4. **Magic Remote / arrow-key** navigation (webOS keycodes, spatial nav)
-5. IPK packaging + sideload
-
-**Deferred:** video playback (old-webOS codec support is limited — tackle after photos work), search, multi-account, maps/places.
+**Not yet:** video playback, photo details (camera, location), people in a photo, multiple accounts.
 
 ## Running it (development)
 
@@ -49,14 +71,14 @@ python tools/devserver.py --mock
 
 Open `http://localhost:8000/` on this PC, or `http://192.168.8.101:8000/` in the TV's web browser. Leave the server address as filled in, paste an API key (Immich → Account Settings → API Keys; any key works in mock mode) and connect.
 
-Keys: arrows move, OK/Enter opens, Back/Esc goes back, OK in the viewer starts or stops the slideshow, CH+/CH- jump three rows.
+On a PC keyboard, Esc is Back, and Enter is OK.
 
 The engine probe is at `/capabilities.html` on the same server.
 
 Before committing JS, check it still parses as ES5:
 
 ```bash
-npx -y acorn@8.14.0 --ecma5 --silent app/js/app.js
+for f in app/js/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not ES5: $f"; done
 ```
 
 ## License

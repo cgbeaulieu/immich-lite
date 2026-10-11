@@ -33,14 +33,15 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
 #header { position: absolute; top: 0; left: 0; right: 0; height: 96px; padding: 0 48px; }
 #tabs { float: left; margin-top: 24px; }
 .tab {
-  display: inline-block; font-size: 26px; padding: 8px 22px; margin-right: 8px;
+  display: inline-block; font-size: 24px; padding: 8px 16px; margin-right: 4px;
   color: #9a9aa2; border: 3px solid transparent; border-radius: 26px; cursor: pointer;
 }
 .tab.current { color: #fff; background: #1f1f26; }
 .tab.focused { color: #fff; border-color: #4e8cff; }
-.tab.play { margin-left: 24px; color: #9cc0ff; }
-#title { float: left; margin: 34px 0 0 24px; font-size: 26px; color: #fff; }
-#when { float: right; margin-top: 34px; font-size: 26px; color: #9a9aa2; }
+.tab.play { margin-left: 16px; color: #9cc0ff; }
+#title, #when { float: right; margin-top: 34px; font-size: 24px; }
+#title { color: #fff; margin-right: 24px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#when { color: #9a9aa2; }
 
 #grid {
   position: absolute; top: 96px; left: 0; right: 0; bottom: 0;
@@ -66,22 +67,79 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
   position: absolute; right: 8px; bottom: 8px; padding: 2px 8px; border-radius: 4px;
   background: rgba(0, 0, 0, 0.7); color: #fff; font-size: 16px; letter-spacing: 1px;
 }
-#grid.size-small .tile { width: 172px; height: 172px; }
-#grid.size-large .tile { width: 312px; height: 312px; }
-/* Album covers keep one size; listed after the size rules so they win. */
-#grid .tile.labelled { width: 300px; height: 364px; }
-#grid .tile.labelled .thumb { height: 300px; }
+#grid.size-small .tile.photo { width: 172px; height: 172px; }
+#grid.size-large .tile.photo { width: 312px; height: 312px; }
 .tile .label {
   position: absolute; left: 0; right: 0; bottom: 0; height: 64px; padding: 6px 12px; box-sizing: border-box;
   font-size: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .tile .label .sub { display: block; font-size: 16px; color: #9a9aa2; }
 
+/* Cards: albums, places, memories, "All people". */
+.tile.card { width: 300px; height: 364px; }
+.tile.card .thumb { height: 300px; }
+.tile.more { background: #1f1f26; }
+.tile.more .thumb { visibility: hidden; }
+.tile.more .label { bottom: auto; top: 130px; height: auto; text-align: center; font-size: 26px; }
+
+/* People: round faces with the name under them. */
+.tile.person { width: 180px; height: 236px; background: none; overflow: visible; }
+.tile.person .thumb { width: 180px; height: 180px; border-radius: 50%; background: #17171c; }
+.tile.person .label { height: 48px; padding: 10px 4px 0; text-align: center; font-size: 20px; }
+.tile.person.focused { box-shadow: none; }
+.tile.person.focused .thumb { box-shadow: 0 0 0 4px #fff, 0 8px 24px rgba(0, 0, 0, 0.6); }
+
+/* Section titles: days in the timeline, People / Places on Explore. */
+.section { float: left; width: 100%; }
+.section-title {
+  padding: 22px 8px 6px; font-size: 22px; color: #dcdce0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ---------- search ---------- */
+#search { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; padding: 24px 88px; overflow: hidden; }
+#search .search-hint { font-size: 22px; color: #9a9aa2; margin-bottom: 18px; }
+#search .search-box { width: 980px; font-size: 30px; }
+#search .search-sub { margin: 28px 0 10px; font-size: 22px; color: #9a9aa2; }
+#search .row {
+  width: 980px; margin-top: 12px; padding: 16px 24px; box-sizing: border-box; font-size: 26px;
+  background: #17171c; border: 3px solid transparent; border-radius: 10px; cursor: pointer;
+}
+#search .row.action { width: auto; display: inline-block; margin-top: 16px; padding: 14px 48px; }
+#search .row.focused { border-color: #4e8cff; background: #1f1f26; }
+
+/* ---------- map ---------- */
+#map { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; overflow: hidden; background: #aad3df; }
+.map-tiles, .map-markers { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+.map-tile { position: absolute; width: 256px; height: 256px; }
+.map-bubble {
+  position: absolute; border-radius: 50%; overflow: hidden; cursor: pointer;
+  border: 3px solid #fff; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5); background: #17171c;
+}
+.map-bubble img { width: 100%; height: 100%; object-fit: cover; }
+.map-bubble span {
+  position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 16px; font-weight: bold;
+  color: #fff; background: rgba(0, 0, 0, 0.6);
+}
+.map-bubble.picked { border-color: #4e8cff; border-width: 5px; z-index: 2; }
+.map-cross {
+  position: absolute; left: 50%; top: 50%; width: 28px; height: 28px; margin: -14px 0 0 -14px;
+  border: 2px solid #4e8cff; border-radius: 50%; pointer-events: none;
+}
+.map-info {
+  position: absolute; left: 24px; bottom: 24px; padding: 10px 18px; border-radius: 8px;
+  font-size: 22px; color: #fff; background: rgba(0, 0, 0, 0.75); white-space: pre;
+}
+.map-credit {
+  position: absolute; right: 0; bottom: 0; padding: 2px 8px; font-size: 14px; color: #333; background: rgba(255, 255, 255, 0.75);
+}
+
 /* ---------- settings ---------- */
-#settings { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; padding: 24px 88px; overflow: hidden; }
+#settings { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; padding: 24px 88px; overflow-y: auto; }
+#settings::-webkit-scrollbar { display: none; }
 #settings .account { white-space: pre; font-size: 24px; line-height: 1.6; color: #bbbbc2; margin-bottom: 28px; }
 #settings .row {
-  width: 980px; overflow: hidden; margin-bottom: 12px; padding: 18px 24px; box-sizing: border-box;
+  width: 980px; overflow: hidden; margin-bottom: 10px; padding: 14px 24px; box-sizing: border-box;
   font-size: 26px; background: #17171c; border: 3px solid transparent; border-radius: 10px; cursor: pointer;
 }
 #settings .row.focused { border-color: #4e8cff; background: #1f1f26; }
