@@ -374,14 +374,14 @@
 
   // ---------- rendering ----------
 
+  /* Like Immich's timeline: the photo at its own shape, "▶ 0:06" or a stack count in
+     the top-right corner, a heart bottom-left for favorites. */
   function renderAsset(it) {
-    var r = { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : videoBadge(it) };
-    if (it.stackCount > 1) { r.badge = (r.badge ? r.badge + '  ' : '') + '⧉ ' + it.stackCount; }
-    return r;
-  }
-
-  function videoBadge(it) {
-    return 'VIDEO' + (it.duration ? ' ' + U.fmtDuration(it.duration / 1000) : '');
+    var corner = [];
+    if (it.stackCount > 1) { corner.push('⧉ ' + it.stackCount); }
+    if (!it.isImage) { corner.push('▶' + (it.duration ? ' ' + U.fmtDuration(it.duration / 1000) : '')); }
+    return { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), ratio: it.ratio || 1,
+      corner: corner.join('   '), heart: it.isFavorite };
   }
 
   function renderCard(it) {
@@ -451,11 +451,10 @@
     for (i = 0; i < panels.length; i++) { U.toggleClass(U.$(panels[i]), 'hidden', panels[i] !== name); }
   }
 
-  function applyTileSize() {
-    var g = U.$('grid'), size = Settings.get('tileSize');
-    U.toggleClass(g, 'size-small', size === 'small');
-    U.toggleClass(g, 'size-large', size === 'large');
-  }
+  /* Thumbnail size sets the height of the justified photo rows (Immich's is ~235px). */
+  var ROW_HEIGHTS = { small: 170, medium: 235, large: 320 };
+
+  function rowHeight() { return ROW_HEIGHTS[Settings.get('tileSize')] || ROW_HEIGHTS.medium; }
 
   // ---------- showing views ----------
 
@@ -657,7 +656,6 @@
         showSetup();
       },
       onChange: function (key) {
-        if (key === 'tileSize') { applyTileSize(); }
         if (key === 'withPartners') { MapView.reset(); }
       },
       onPointer: pointer
@@ -697,7 +695,10 @@
 
   function toggleFavorite(it, cb) {
     client.setFavorite([it.id], !it.isFavorite, function (err) {
-      if (!err) { it.isFavorite = !it.isFavorite; }
+      if (!err) {
+        it.isFavorite = !it.isFavorite;
+        if (grid.items.indexOf(it) !== -1) { grid.refreshMarks(grid.items.indexOf(it)); }
+      }
       cb(err);
     });
   }
@@ -933,9 +934,9 @@
   function start() {
     var tabs = U.$('tabs').children, server, key, i;
     Viewer.init();
-    applyTileSize();
     grid = new Grid(U.$('grid'), {
       onSelect: select,
+      rowHeight: rowHeight,
       onNeedMore: function () { loadMore(); },
       onPointer: pointer,
       onFocus: function (item) {

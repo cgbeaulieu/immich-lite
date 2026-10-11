@@ -15,6 +15,7 @@ var Grid = (function () {
   var LOAD_SCREENS = 1;   // load images this many screens above and below the view
   var KEEP_SCREENS = 4;   // release loaded images further away than this
   var MORE_SCREENS = 1.5; // ask for more items when the end is this close
+  var GAP = 2;            // px between photos (1px margin each side), like Immich's thin lines
 
   function Grid(box, opts) {
     var self = this, pending = null;
@@ -35,7 +36,9 @@ var Grid = (function () {
     }, false);
   }
 
-  /* render(item) -> {thumb, badge, label, sub, shape: 'photo' | 'card' | 'person'} */
+  /* render(item) -> {thumb, label, sub, shape: 'photo' | 'card' | 'person',
+       ratio (photos: width / height, laid out in justified rows),
+       corner (top-right mark such as '▶ 0:06'), heart, badge} */
   Grid.prototype.reset = function (render) {
     this.box.innerHTML = '';
     this.box.scrollTop = 0;
@@ -44,6 +47,7 @@ var Grid = (function () {
     this.tiles = [];
     this.sections = [];   // {key, el, start, count}
     this.secOf = [];      // item index -> section index
+    this.ratios = [];     // item index -> width / height (photos), or 0
     this.rows = [];       // screen rows: {start, end, top}
     this.rowOf = [];      // item index -> row index
     this.loaded = {};
@@ -74,6 +78,7 @@ var Grid = (function () {
       tile = this.makeTile(items[i], this.items.length);
       frag.appendChild(tile);
       this.secOf.push(this.sections.length - 1);
+      this.ratios.push(tile.ratio || 0);
       this.items.push(items[i]);
       this.tiles.push(tile);
     }
@@ -84,14 +89,56 @@ var Grid = (function () {
     this.hydrate();
   };
 
+  Grid.prototype.innerWidth = function () {
+    var bs = window.getComputedStyle(this.box);
+    return this.box.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
+  };
+
   /* A section narrower than a full row shrinks to its tiles so the next one can sit
      beside it; anything wider takes the full width. */
   Grid.prototype.size = function (s) {
-    var t = this.tiles[s.start], bs = window.getComputedStyle(this.box), cs = window.getComputedStyle(t);
-    var inner = this.box.clientWidth - parseFloat(bs.paddingLeft) - parseFloat(bs.paddingRight);
-    var outer = t.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight);
-    var perRow = Math.max(1, Math.floor(inner / outer));
+    var t = this.tiles[s.start], cs, outer, perRow;
+    if (this.ratios[s.start]) { return this.justify(s); }
+    cs = window.getComputedStyle(t);
+    outer = t.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight);
+    perRow = Math.max(1, Math.floor(this.innerWidth() / outer));
     s.el.style.width = s.count < perRow ? (s.count * outer + 'px') : '100%';
+  };
+
+  /* Photos keep their own shape, like Immich's timeline: tiles are added to a row at
+     the target height until it would overflow, then the row is scaled down to fill the
+     width exactly. A short last row stays at the target height, and a section that's
+     only that row keeps its natural width so the next day can sit beside it. */
+  Grid.prototype.justify = function (s) {
+    var W = this.innerWidth(), H = this.opts.rowHeight ? this.opts.rowHeight() : 235;
+    var end = s.start + s.count, row = [], sum = 0, full = false, i, w;
+    for (i = s.start; i < end; i++) {
+      row.push(i);
+      sum += this.ratios[i];
+      if (sum * H + row.length * GAP >= W) {
+        this.sizeRow(row, (W - row.length * GAP) / sum, W - row.length * GAP);
+        row = [];
+        sum = 0;
+        full = true;
+      }
+    }
+    w = row.length ? this.sizeRow(row, H, 0) + row.length * GAP : 0;
+    s.el.style.width = full ? '100%' : w + 'px';
+  };
+
+  /* Sizes one row of tiles to height h. With fill, the rounded widths add up to fill
+     exactly, so floats never wrap early. Returns the tiles' total width. */
+  Grid.prototype.sizeRow = function (row, h, fill) {
+    var total = 0, j, w, st;
+    for (j = 0; j < row.length; j++) {
+      w = Math.floor(this.ratios[row[j]] * h);
+      if (fill && j === row.length - 1) { w = fill - total; }
+      st = this.tiles[row[j]].style;
+      st.width = w + 'px';
+      st.height = Math.round(h) + 'px';
+      total += w;
+    }
+    return total;
   };
 
   Grid.prototype.makeTile = function (item, index) {
@@ -100,11 +147,13 @@ var Grid = (function () {
     var img = document.createElement('img');
     var el, sub;
     tile.className = 'tile ' + (r.shape || 'photo');
+    tile.ratio = r.ratio > 0 ? Math.max(0.2, Math.min(5, r.ratio)) : 0; // tame extreme panoramas
     img.className = 'thumb';
     img.src = BLANK;
     img.setAttribute('data-src', r.thumb || '');
     img.onerror = function () { if (img.src !== BLANK) { img.src = BLANK; } };
     tile.appendChild(img);
+    this.addMarks(tile, r);
     if (r.badge) {
       el = document.createElement('span');
       el.className = 'badge';
@@ -133,6 +182,33 @@ var Grid = (function () {
       if (self.opts.onSelect) { self.opts.onSelect(self.items[index], index); }
     };
     return tile;
+  };
+
+  /* The small marks over a photo: video length / stack count top-right, a heart
+     bottom-left for favorites. */
+  Grid.prototype.addMarks = function (tile, r) {
+    var el;
+    if (r.corner) {
+      el = document.createElement('span');
+      el.className = 'mark corner';
+      el.textContent = r.corner;
+      tile.appendChild(el);
+    }
+    if (r.heart) {
+      el = document.createElement('span');
+      el.className = 'mark heart';
+      el.textContent = '♥';
+      tile.appendChild(el);
+    }
+  };
+
+  /* Redraws one tile's marks after its item changed (e.g. starred in the viewer). */
+  Grid.prototype.refreshMarks = function (i) {
+    var tile = this.tiles[i], marks, j;
+    if (!tile) { return; }
+    marks = tile.querySelectorAll('.mark');
+    for (j = 0; j < marks.length; j++) { tile.removeChild(marks[j]); }
+    this.addMarks(tile, this.render(this.items[i]));
   };
 
   /* Rebuilds the screen rows: runs of tiles with the same top edge. Tiles flow in

@@ -436,7 +436,7 @@ class Mock:
         cols = {
             "id": [a["id"] for a in items], "isImage": [a["img"] for a in items],
             "isFavorite": [a["fav"] for a in items], "fileCreatedAt": [a["date"] for a in items],
-            "ratio": [1.5] * n, "createdAt": [None] * n, "isTrashed": [False] * n,
+            "ratio": [Mock.ratio_of(a["id"]) for a in items], "createdAt": [None] * n, "isTrashed": [False] * n,
             "duration": [None if a["img"] else MOCK_VIDEO_MS for a in items],
             "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n, "ownerId": ["mock-user"] * n,
             "projectionType": [None] * n, "thumbhash": [None] * n, "visibility": ["timeline"] * n,
@@ -445,11 +445,19 @@ class Mock:
             cols["stack"] = [a.get("stack") for a in items]
         return cols
 
+    # A spread of real-world shapes: phone landscape/portrait, 4:3, square, panorama.
+    RATIOS = [1.333, 0.75, 1.778, 0.5625, 1.5, 1.0, 0.667, 2.8]
+
+    @classmethod
+    def ratio_of(cls, asset_id):
+        return cls.RATIOS[int(hashlib.md5(("ratio" + asset_id).encode()).hexdigest(), 16) % len(cls.RATIOS)]
+
     @staticmethod
     def dto(a):
         return {"id": a["id"], "type": "IMAGE" if a["img"] else "VIDEO", "isFavorite": a["fav"],
                 "fileCreatedAt": a["date"], "localDateTime": a["date"],
-                "duration": None if a["img"] else MOCK_VIDEO_MS}
+                "duration": None if a["img"] else MOCK_VIDEO_MS,
+                "width": int(1000 * Mock.ratio_of(a["id"])), "height": 1000}
 
     def page(self, items, body):
         page, size = int(body.get("page") or 1), int(body.get("size") or 100)

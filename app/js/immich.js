@@ -6,7 +6,7 @@
 
    Assets are passed around the app as small objects:
    {id, isImage, isFavorite, date: 'YYYY-MM-DD' (local day it was taken),
-    duration: ms (videos; 0 if unknown)}. */
+    duration: ms (videos; 0 if unknown), ratio: width / height}. */
 var Immich = (function () {
   'use strict';
 
@@ -260,7 +260,8 @@ var Immich = (function () {
         isImage: cols.isImage ? cols.isImage[i] : true,
         isFavorite: cols.isFavorite ? !!cols.isFavorite[i] : false,
         date: U.localDay(cols.fileCreatedAt ? cols.fileCreatedAt[i] : null, cols.localOffsetHours ? cols.localOffsetHours[i] : 0),
-        duration: cols.duration ? durationMs(cols.duration[i]) : 0
+        duration: cols.duration ? durationMs(cols.duration[i]) : 0,
+        ratio: cols.ratio && cols.ratio[i] > 0 ? cols.ratio[i] : 1
       });
     }
     addStacks(cols, out);
@@ -289,7 +290,8 @@ var Immich = (function () {
         isImage: a.type === 'IMAGE',
         isFavorite: !!a.isFavorite,
         date: String(a.localDateTime || a.fileCreatedAt || '').substr(0, 10),
-        duration: durationMs(a.duration)
+        duration: durationMs(a.duration),
+        ratio: a.width > 0 && a.height > 0 ? a.width / a.height : 1
       });
     }
     return out;

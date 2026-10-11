@@ -20,7 +20,7 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 
 | Tab | What it does |
 |---|---|
-| **Photos** | Your timeline, grouped by day (or month) like Immich's web app, loaded a month at a time. Stacks (burst shots, edits) show as one photo with a ⧉ count |
+| **Photos** | Your timeline, laid out like Immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
 | **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
 | **Map** | Your photos on an OpenStreetMap map, grouped into bubbles |
 | **Favorites** | Photos you've starred |
