@@ -38,18 +38,26 @@ var Icons = (function () {
 
   var logos = 0;
 
-  /* The app's own mark (not Immich's logo: this is an unofficial client). Each copy
+  /* One petal of the mark, drawn around the flower's centre at a ~600-unit scale:
+     its point sits near the centre and its round end at the top. logo() turns it
+     five ways; its trailing edge runs parallel to the next petal's leading edge,
+     which leaves the even gaps between petals. */
+  var PETAL = 'M70 -18C40 -66 -40 -138 -125 -197C-140 -228 -112 -292 -9 -299C75 -305 134 -262 132 -205C128 -150 104 -84 70 -18Z';
+
+  /* The app's mark: Immich's five-petal pinwheel in white on our gradient. Each copy
      gets its own gradient id: a copy on a hidden screen would otherwise own the
      shared one and leave the others unfilled. */
   function logo(cls) {
-    var id = 'lg-logo-' + (++logos);
+    var id = 'lg-logo-' + (++logos), petals = '', i;
+    for (i = 0; i < 5; i++) {
+      petals += '<path d="' + PETAL + '" transform="rotate(' + (i * 72) + ')"/>';
+    }
     return '<svg class="logo' + (cls ? ' ' + cls : '') + '" viewBox="0 0 48 48" aria-hidden="true">' +
       '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="1" y2="1">' +
       '<stop offset="0" stop-color="#7aa7ff"/><stop offset="0.55" stop-color="#9b7bff"/><stop offset="1" stop-color="#ff7aa8"/>' +
       '</linearGradient></defs>' +
       '<rect x="2" y="2" width="44" height="44" rx="13" fill="url(#' + id + ')"/>' +
-      '<path d="M11 33l9-10 6 6 4-4 7 8z" fill="#fff" opacity="0.95"/>' +
-      '<circle cx="31" cy="16.5" r="3.6" fill="#fff" opacity="0.95"/></svg>';
+      '<g fill="#fff" transform="translate(24 24.8) scale(0.058)">' + petals + '</g></svg>';
   }
 
   return { svg: svg, logo: logo };
