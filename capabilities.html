@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=1280, initial-scale=1">
+<title>Immich-Lite Capability Probe</title>
+<style>
+  /* Deliberately old-school CSS; large text for 10-foot TV viewing */
+  body { background:#111; color:#eee; font-family:Arial, sans-serif; margin:0; padding:24px; }
+  h1 { font-size:28px; margin:0 0 6px; }
+  .ua { font-size:16px; color:#8fd; word-break:break-all; background:#000; padding:10px; border:1px solid #333; margin:0 0 18px; }
+  .cols { overflow:hidden; }
+  .col { width:48%; float:left; }
+  .col.right { float:right; }
+  ul { list-style:none; margin:0; padding:0; }
+  li { font-size:18px; padding:6px 8px; border-bottom:1px solid #222; }
+  .ok  { color:#7f7; }
+  .no  { color:#f77; }
+  .tag { display:inline-block; width:46px; font-weight:bold; }
+  .note { font-size:14px; color:#999; margin-top:16px; }
+</style>
+</head>
+<body>
+  <h1>Immich-Lite &mdash; webOS Capability Probe</h1>
+  <div id="ua" class="ua">reading userAgent...</div>
+  <div class="cols">
+    <div class="col left"><ul id="listA"></ul></div>
+    <div class="col right"><ul id="listB"></ul></div>
+  </div>
+  <div class="note" id="summary"></div>
+
+<script type="text/javascript">
+/* ES5 ONLY. This page must run on the oldest engine, so no arrow functions,
+   no const/let, no template literals, no fetch assumptions. Syntax-level
+   features are probed via eval() inside try/catch so a SyntaxError = FAIL
+   instead of blanking the whole page. */
+(function () {
+  var results = [];
+
+  function add(name, pass) {
+    results.push({ name: name, pass: !!pass });
+  }
+
+  function has(obj, prop) {
+    try { return typeof obj !== 'undefined' && obj !== null && (prop in obj); }
+    catch (e) { return false; }
+  }
+
+  function evalOK(src) {
+    try { /* jshint evil:true */ eval(src); return true; }
+    catch (e) { return false; }
+  }
+
+  // --- Core JS APIs ---
+  add('XMLHttpRequest', typeof XMLHttpRequest !== 'undefined');
+  add('fetch()', typeof fetch !== 'undefined');
+  add('Promise', typeof Promise !== 'undefined');
+  add('JSON.parse', typeof JSON !== 'undefined' && typeof JSON.parse === 'function');
+  add('Array.forEach', !!(Array.prototype && Array.prototype.forEach));
+  add('Array.map', !!(Array.prototype && Array.prototype.map));
+  add('Array.filter', !!(Array.prototype && Array.prototype.filter));
+  add('Object.keys', typeof Object.keys === 'function');
+  add('Object.assign', typeof Object.assign === 'function');
+  add('localStorage', (function () { try { return typeof localStorage !== 'undefined'; } catch (e) { return false; } })());
+  add('addEventListener', typeof document.addEventListener === 'function');
+  add('querySelector', typeof document.querySelector === 'function');
+  add('classList', has(document.createElement('div'), 'classList'));
+  add('requestAnimationFrame', typeof requestAnimationFrame !== 'undefined' || typeof webkitRequestAnimationFrame !== 'undefined');
+
+  // --- Imaging / media (matter for a photo app) ---
+  add('<img srcset>', has(document.createElement('img'), 'srcset'));
+  add('IntersectionObserver', typeof IntersectionObserver !== 'undefined');
+  add('Blob', typeof Blob !== 'undefined');
+  add('URL.createObjectURL', typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function');
+  add('<video> element', !!document.createElement('video').canPlayType);
+  add('H.264 (video/mp4)', (function () { try { var v = document.createElement('video'); return v.canPlayType && v.canPlayType('video/mp4; codecs="avc1.42E01E"') !== ''; } catch (e) { return false; } })());
+
+  // --- ES6+ syntax (via eval so a parse error doesn't kill the page) ---
+  add('let / const', evalOK('let _x=1; const _y=2; _x+_y;'));
+  add('arrow functions', evalOK('var f=function(){}; (()=>1)();'));
+  add('template literals', evalOK('var a=1; "`"; (function(){return `v${a}`;})();'));
+  add('async / await', evalOK('(async function(){ await 0; })();'));
+  add('for...of', evalOK('for (var _z of [1,2]) {}'));
+  add('Promise+then usable', typeof Promise !== 'undefined' && !!(Promise.prototype && Promise.prototype.then));
+
+  // --- CSS layout (probed with CSS.supports when present, else inline fallback) ---
+  function cssSupports(prop, val) {
+    try {
+      if (window.CSS && CSS.supports) { return CSS.supports(prop, val); }
+      var el = document.createElement('div');
+      el.style[prop] = val;
+      return el.style[prop] === val;
+    } catch (e) { return false; }
+  }
+  add('CSS flexbox', cssSupports('display', 'flex'));
+  add('CSS grid', cssSupports('display', 'grid'));
+  add('CSS transitions', cssSupports('transition', 'all 1s'));
+  add('CSS transform', cssSupports('transform', 'translateX(1px)'));
+  add('position: sticky', cssSupports('position', 'sticky'));
+
+  // --- Render ---
+  document.getElementById('ua').textContent = navigator.userAgent;
+
+  var half = Math.ceil(results.length / 2);
+  var listA = document.getElementById('listA');
+  var listB = document.getElementById('listB');
+  var passCount = 0;
+  for (var i = 0; i < results.length; i++) {
+    var r = results[i];
+    if (r.pass) { passCount++; }
+    var li = document.createElement('li');
+    var tag = document.createElement('span');
+    tag.className = 'tag ' + (r.pass ? 'ok' : 'no');
+    tag.textContent = r.pass ? 'PASS' : 'FAIL';
+    li.appendChild(tag);
+    li.appendChild(document.createTextNode(' ' + r.name));
+    (i < half ? listA : listB).appendChild(li);
+  }
+
+  document.getElementById('summary').textContent =
+    passCount + ' / ' + results.length + ' features supported. ' +
+    'Read this screen (or the userAgent line) back to lock the Immich-Lite stack.';
+})();
+</script>
+</body>
+</html>

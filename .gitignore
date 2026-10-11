@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# webOS build artifacts
+*.ipk
+/dist/
+/build/
+.ares/
+
+# Local config / secrets (never commit a server URL + API key)
+.env
+.env.*
+config.local.*
+*.secret
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
