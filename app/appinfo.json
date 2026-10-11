@@ -1,0 +1,10 @@
+{
+  "id": "com.cgbeaulieu.immichlite",
+  "version": "0.1.0",
+  "vendor": "Immich-Lite",
+  "type": "web",
+  "main": "index.html",
+  "title": "Immich Lite",
+  "resolution": "1920x1080",
+  "disableBackHistoryAPI": true
+}
