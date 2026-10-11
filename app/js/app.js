@@ -451,8 +451,9 @@
     for (i = 0; i < panels.length; i++) { U.toggleClass(U.$(panels[i]), 'hidden', panels[i] !== name); }
   }
 
-  /* Thumbnail size sets the height of the justified photo rows (Immich's is ~235px). */
-  var ROW_HEIGHTS = { small: 170, medium: 235, large: 320 };
+  /* Thumbnail size sets the height of the justified photo rows. Immich's desktop web
+     app uses ~235px; a TV is seen from across the room, so these run larger. */
+  var ROW_HEIGHTS = { small: 240, medium: 320, large: 420, xlarge: 540 };
 
   function rowHeight() { return ROW_HEIGHTS[Settings.get('tileSize')] || ROW_HEIGHTS.medium; }
 

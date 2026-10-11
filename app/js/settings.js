@@ -9,8 +9,8 @@ var Settings = (function () {
       text: function (v) { return v === 'shuffle' ? 'Shuffle' : 'In order'; } },
     { key: 'groupBy', label: 'Group photos by', values: ['day', 'month', 'off'], def: 'day',
       text: function (v) { return v === 'day' ? 'Day' : (v === 'month' ? 'Month' : 'No grouping'); } },
-    { key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large'], def: 'medium',
-      text: function (v) { return v.charAt(0).toUpperCase() + v.substr(1); } },
+    { key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large', 'xlarge'], def: 'medium',
+      text: function (v) { return v === 'xlarge' ? 'Extra large' : v.charAt(0).toUpperCase() + v.substr(1); } },
     { key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
       text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } },
     // Read when Photos or the map opens, so a change shows the next time they open.
