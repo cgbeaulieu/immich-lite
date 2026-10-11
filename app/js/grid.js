@@ -15,7 +15,7 @@ var Grid = (function () {
   var LOAD_SCREENS = 1;   // load images this many screens above and below the view
   var KEEP_SCREENS = 4;   // release loaded images further away than this
   var MORE_SCREENS = 1.5; // ask for more items when the end is this close
-  var GAP = 2;            // px between photos (1px margin each side), like Immich's thin lines
+  var GAP = 4;            // px between photos (2px margin each side)
 
   function Grid(box, opts) {
     var self = this, pending = null;
@@ -103,6 +103,7 @@ var Grid = (function () {
     outer = t.offsetWidth + parseFloat(cs.marginLeft) + parseFloat(cs.marginRight);
     perRow = Math.max(1, Math.floor(this.innerWidth() / outer));
     s.el.style.width = s.count < perRow ? (s.count * outer + 'px') : '100%';
+    U.toggleClass(s.el, 'narrow', s.count < perRow);
   };
 
   /* Photos keep their own shape, like Immich's timeline: tiles are added to a row at
@@ -124,6 +125,7 @@ var Grid = (function () {
     }
     w = row.length ? this.sizeRow(row, H, 0) + row.length * GAP : 0;
     s.el.style.width = full ? '100%' : w + 'px';
+    U.toggleClass(s.el, 'narrow', !full);
   };
 
   /* Sizes one row of tiles to height h. With fill, the rounded widths add up to fill
@@ -146,14 +148,21 @@ var Grid = (function () {
     var tile = document.createElement('div');
     var img = document.createElement('img');
     var el, sub;
-    tile.className = 'tile ' + (r.shape || 'photo');
+    tile.className = 'tile ' + (r.shape || 'photo') + (r.thumb ? '' : ' nothumb');
     tile.ratio = r.ratio > 0 ? Math.max(0.2, Math.min(5, r.ratio)) : 0; // tame extreme panoramas
     img.className = 'thumb';
     img.src = BLANK;
     img.setAttribute('data-src', r.thumb || '');
     img.onerror = function () { if (img.src !== BLANK) { img.src = BLANK; } };
+    img.onload = function () { if (img.src !== BLANK) { U.addClass(img, 'in'); } }; // fade in
     tile.appendChild(img);
     this.addMarks(tile, r);
+    if (r.icon) {
+      el = document.createElement('div');
+      el.className = 'card-icon';
+      el.innerHTML = Icons.svg(r.icon);
+      tile.appendChild(el);
+    }
     if (r.badge) {
       el = document.createElement('span');
       el.className = 'badge';
@@ -259,6 +268,7 @@ var Grid = (function () {
       if (this.loaded.hasOwnProperty(k)) {
         t = this.tiles[k];
         if (t.offsetTop < top - h * KEEP_SCREENS || t.offsetTop > top + h * (1 + KEEP_SCREENS)) {
+          U.removeClass(t.firstChild, 'in');
           t.firstChild.src = BLANK;
           delete this.loaded[k];
         }
@@ -320,7 +330,10 @@ var Grid = (function () {
     var f = this.focus, n = this.tiles.length;
     if (!n) { return false; }
     switch (k) {
-      case KEY.LEFT: if (f > 0) { this.setFocus(f - 1); } return true;
+      case KEY.LEFT:
+        if (this.rows[this.rowOf[f]] && this.rows[this.rowOf[f]].start === f) { return false; } // to the sidebar
+        this.setFocus(f - 1);
+        return true;
       case KEY.RIGHT: if (f < n - 1) { this.setFocus(f + 1); } return true;
       case KEY.UP: return this.moveRows(-1);
       case KEY.DOWN: this.moveRows(1); return true;

@@ -3,22 +3,22 @@ var Settings = (function () {
   'use strict';
 
   var OPTIONS = [
-    { key: 'slideSeconds', label: 'Slideshow speed', values: ['3', '5', '8', '12', '20'], def: '8',
-      text: function (v) { return v + ' seconds'; } },
-    { key: 'slideOrder', label: 'Slideshow order', values: ['inorder', 'shuffle'], def: 'inorder',
+    { group: 'Slideshow', key: 'slideSeconds', label: 'Speed', values: ['3', '5', '8', '12', '20', '30', '60'], def: '8',
+      text: function (v) { return v === '60' ? '1 minute' : v + ' seconds'; } },
+    { group: 'Slideshow', key: 'slideOrder', label: 'Order', values: ['inorder', 'shuffle'], def: 'inorder',
       text: function (v) { return v === 'shuffle' ? 'Shuffle' : 'In order'; } },
-    { key: 'groupBy', label: 'Group photos by', values: ['day', 'month', 'off'], def: 'day',
+    { group: 'Photos', key: 'groupBy', label: 'Group photos by', values: ['day', 'month', 'off'], def: 'day',
       text: function (v) { return v === 'day' ? 'Day' : (v === 'month' ? 'Month' : 'No grouping'); } },
-    { key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large', 'xlarge'], def: 'medium',
+    { group: 'Photos', key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large', 'xlarge'], def: 'medium',
       text: function (v) { return v === 'xlarge' ? 'Extra large' : v.charAt(0).toUpperCase() + v.substr(1); } },
-    { key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
+    { group: 'Photos', key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
       text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } },
     // Read when Photos or the map opens, so a change shows the next time they open.
-    { key: 'withPartners', label: 'Partner photos in Photos and Map', values: ['on', 'off'], def: 'on',
+    { group: 'Photos', key: 'withPartners', label: 'Partner photos in Photos and Map', values: ['on', 'off'], def: 'on',
       text: function (v) { return v === 'on' ? 'On' : 'Off'; } }
   ];
 
-  var box, info, partnerSlot, rows = [], focus = 0, active = false, handlers = null;
+  var box, partnerSlot, rows = [], focus = 0, active = false, handlers = null;
 
   function option(key) {
     for (var i = 0; i < OPTIONS.length; i++) { if (OPTIONS[i].key === key) { return OPTIONS[i]; } }
@@ -30,63 +30,77 @@ var Settings = (function () {
     return o.values.indexOf(v) === -1 ? o.def : v;
   }
 
-  /* h: {account(cb(lines)), stats(cb(lines)), partners(cb(note, list)), changeServer(),
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text) { e.textContent = text; }
+    return e;
+  }
+
+  /* h: {account(cb(lines, user)), stats(cb(lines)), partners(cb(note, list)), changeServer(),
          signOut(), onChange(key), onPointer()} */
   function open(h) {
-    var i, row;
+    var i, group = null, profile;
     handlers = h;
     box = U.$('settings');
     box.innerHTML = '';
+    box.scrollTop = 0;
     rows = [];
     focus = 0;
 
-    info = document.createElement('div');
-    info.className = 'account';
-    info.textContent = 'Loading account...';
-    box.appendChild(info);
-    h.account(function (lines) { info.textContent = lines.join('\n'); });
-    if (h.stats) { addStats(h.stats); }
+    profile = addProfile();
+    h.account(function (lines, user) {
+      var name = user && (user.name || user.email) || 'Your account';
+      profile.avatar.textContent = name.charAt(0).toUpperCase();
+      profile.who.textContent = name;
+      profile.account = lines.slice(user && user.name ? 1 : 0);
+      drawProfile(profile);
+    });
+    if (h.stats) {
+      h.stats(function (lines) { profile.stats = lines; drawProfile(profile); });
+    }
 
     for (i = 0; i < OPTIONS.length; i++) {
+      if (OPTIONS[i].group !== group) {
+        group = OPTIONS[i].group;
+        box.appendChild(el('div', 'set-section', group));
+      }
       addRow(OPTIONS[i].label, OPTIONS[i]);
     }
-    partnerSlot = document.createElement('div');
+    partnerSlot = el('div');
     box.appendChild(partnerSlot);
     if (h.partners) { addPartners(h.partners); }
-    addRow('Change server or API key', null, h.changeServer);
-    addRow('Sign out', null, h.signOut);
+    box.appendChild(el('div', 'set-section', 'Account'));
+    addRow('Change server or sign-in', null, h.changeServer);
+    addRow('Sign out', null, h.signOut, { cls: 'danger' });
 
-    row = document.createElement('div');
-    row.className = 'about';
-    row.textContent = 'Left and right change a setting. Back returns to the tabs.';
-    box.appendChild(row);
-
+    box.appendChild(el('div', 'about', 'Left and Right change a setting. Back goes to the menu.'));
     draw();
   }
 
-  /* Library statistics under the account lines. A hook of their own (stats(cb(lines)))
-     because they need extra permissions and load separately; no lines hides them. */
-  function addStats(load) {
-    var el = document.createElement('div');
-    el.className = 'account stats';
-    el.textContent = 'Loading library statistics...';
-    box.appendChild(el);
-    load(function (lines) {
-      el.textContent = lines.join('\n');
-      U.toggleClass(el, 'hidden', !lines.length);
-    });
+  /* The card at the top: initial, name, then account and library lines. */
+  function addProfile() {
+    var p = { el: el('div', 'profile'), avatar: el('div', 'avatar', '?'), who: el('div', 'who', 'Loading your account...'),
+      lines: el('div', 'lines'), account: [], stats: [] };
+    var text = el('div', 'text');
+    p.el.appendChild(p.avatar);
+    text.appendChild(p.who);
+    text.appendChild(p.lines);
+    p.el.appendChild(text);
+    box.appendChild(p.el);
+    return p;
   }
+
+  function drawProfile(p) { p.lines.textContent = p.account.concat(p.stats).join('\n'); }
 
   /* Partners load after the page opens, so their rows are slotted in between the
      options and the account actions; rows look their position up when used. */
   function addPartners(load) {
     load(function (note, list) {
-      var at = rows.length - 2, i, el;    // before "Change server" and "Sign out"
+      var at = rows.length - 2, i;    // before "Change server" and "Sign out"
       partnerSlot.innerHTML = '';
-      el = document.createElement('div');
-      el.className = 'account partners';
-      el.textContent = note;
-      partnerSlot.appendChild(el);
+      partnerSlot.appendChild(el('div', 'set-section', 'Partners'));
+      partnerSlot.appendChild(el('div', 'set-note', note));
       for (i = 0; i < list.length; i++) {
         addRow(list[i].label, null, null, { partner: list[i], at: at + i, parent: partnerSlot });
       }
@@ -94,18 +108,18 @@ var Settings = (function () {
     });
   }
 
-  /* extra (optional): {partner: {label, on, toggle(cb(err, on))}, at, parent} */
+  /* extra (optional): {partner: {label, on, toggle(cb(err, on))}, at, parent, cls} */
   function addRow(label, opt, action, extra) {
-    var row = document.createElement('div');
-    var name = document.createElement('span');
+    var row = el('div'), name = el('span', 'name', label), val;
     var entry = { el: row, opt: opt, action: action, partner: extra && extra.partner };
-    row.className = 'row' + (opt || entry.partner ? '' : ' action');
-    name.className = 'name';
-    name.textContent = label;
+    row.className = 'row' + (opt || entry.partner ? '' : ' action') + (extra && extra.cls ? ' ' + extra.cls : '');
     row.appendChild(name);
     if (opt || entry.partner) {
-      var val = document.createElement('span');
-      val.className = 'value';
+      val = el('span', 'value');
+      val.appendChild(el('span', 'arrow', '‹'));
+      entry.text = el('span', 'text');
+      val.appendChild(entry.text);
+      val.appendChild(el('span', 'arrow', '›'));
       row.appendChild(val);
     }
     row.onmouseover = function () {
@@ -115,7 +129,7 @@ var Settings = (function () {
     };
     row.onclick = function () { focus = rows.indexOf(entry); activate(); };
     (extra && extra.parent ? extra.parent : box).appendChild(row);
-    if (extra) {
+    if (extra && extra.at !== undefined) {
       if (extra.at <= focus) { focus++; } // keep the focused row focused
       rows.splice(extra.at, 0, entry);
     } else {
@@ -141,18 +155,18 @@ var Settings = (function () {
     for (i = 0; i < rows.length; i++) {
       r = rows[i];
       U.toggleClass(r.el, 'focused', active && i === focus);
-      if (r.opt) { r.el.lastChild.textContent = '‹  ' + r.opt.text(get(r.opt.key)) + '  ›'; }
+      if (r.opt) { r.text.textContent = r.opt.text(get(r.opt.key)); }
       if (r.partner) {
-        r.el.lastChild.textContent = r.partner.busy ? 'Saving...' :
-          (r.partner.error ? 'Error: ' + r.partner.error : '‹  ' + (r.partner.on ? 'Shown' : 'Hidden') + '  ›');
+        r.text.textContent = r.partner.busy ? 'Saving...' :
+          (r.partner.error ? 'Error: ' + r.partner.error : (r.partner.on ? 'Shown' : 'Hidden'));
       }
     }
-    // Keep the focused row on screen (the list is taller than a 720p screen).
+    // Keep the focused row on screen, with its section title when it's near the top.
     r = rows[focus];
     if (active && r) {
-      if (r.el.offsetTop - 24 < box.scrollTop) { box.scrollTop = focus === 0 ? 0 : r.el.offsetTop - 24; }
-      else if (r.el.offsetTop + r.el.offsetHeight + 24 > box.scrollTop + box.clientHeight) {
-        box.scrollTop = r.el.offsetTop + r.el.offsetHeight + 24 - box.clientHeight;
+      if (r.el.offsetTop - 90 < box.scrollTop) { box.scrollTop = focus === 0 ? 0 : r.el.offsetTop - 90; }
+      else if (r.el.offsetTop + r.el.offsetHeight + 40 > box.scrollTop + box.clientHeight) {
+        box.scrollTop = r.el.offsetTop + r.el.offsetHeight + 40 - box.clientHeight;
       }
     }
   }
@@ -192,8 +206,15 @@ var Settings = (function () {
     return false;
   }
 
+  /* Pick a value directly (the Slideshow page's speed and order pills). */
+  function set(key, value) {
+    var o = option(key);
+    if (o && o.values.indexOf(value) !== -1) { Store.set(key, value); }
+  }
+
   return {
     get: get,
+    set: set,
     slideMs: function () { return parseInt(get('slideSeconds'), 10) * 1000; },
     open: open,
     setActive: setActive,

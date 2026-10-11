@@ -27,15 +27,20 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | **Albums** | Your albums and albums shared with you |
 | **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
 | **Settings** | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
-| **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place/tag/archive) |
+| **Slideshow** | A page for leaving the TV running as a photo frame: a big photo over "Choose what to play" (all photos, favorites, memories, people, albums), with speed and shuffle. The remote's **Play** key also plays whatever is focused, anywhere |
 | **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
 | **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
+
+## Signing in
+
+Sign in with the **email and password** you use for Immich (easiest to type on a TV), or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
 
 ## Remote keys
 
 | Where | Keys |
 |---|---|
 | Anywhere | Arrows move, OK opens, Back goes back, **Play** starts a slideshow of what's focused |
+| Sidebar | **Left** from the edge of a page (or Back on a top page) opens it; Up/Down pick, OK opens, Right goes back to the page |
 | Photo grids | CH+/CH- jump three rows |
 | Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, **▼ details panel**, **1-5 star rating** (0 clears it), CH+/CH- step through a stack |
 | On a video | OK, Play and Pause play and pause it (it starts by itself when opened from the grid). Left/Right stop it and move on |
@@ -50,7 +55,7 @@ Photos shared with you through Immich's partner sharing (Account Settings → Pa
 
 ## API key permissions
 
-Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
+Only for signing in with an API key; email and password sign-in has your account's full access. Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
 `user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read` (stacks),
 `folder.read` (Folders), `tag.read` (Tags), `partner.read` and `partner.update` (partner photos),
 `asset.statistics` and `server.storage` (library statistics in Settings; without them those lines are left out).
@@ -81,7 +86,7 @@ python tools/devserver.py --mock
 
 The mock's videos all play the same tiny 6-second clip (built by the dev server, no files needed), except December 2025's, which fail on purpose to show the "can't play" fallback.
 
-Open `http://localhost:8000/` on this PC, or `http://192.168.8.101:8000/` in the TV's web browser. Leave the server address as filled in, paste an API key (Immich → Account Settings → API Keys; any key works in mock mode) and connect.
+Open `http://localhost:8000/` on this PC, or `http://192.168.8.101:8000/` in the TV's web browser. Leave the server address as filled in and sign in (in mock mode any email and password work, except the password `wrong`).
 
 On a PC keyboard, Esc is Back, and Enter is OK.
 

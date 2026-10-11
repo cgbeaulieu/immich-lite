@@ -2,50 +2,82 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Immich-Lite</title>
+<title>Immich Lite</title>
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
 
 <div id="setup" class="screen hidden">
-  <div class="panel">
-    <h1>Immich-Lite</h1>
-    <p class="hint">Connect to your Immich server. Create an API key in Immich under
-      Account Settings &rarr; API Keys.</p>
+  <div class="setup-bg"><div class="blob b1"></div><div class="blob b2"></div><div class="blob b3"></div><div class="blob b4"></div></div>
+  <div class="setup-left">
+    <div class="brand"><span id="brand-logo"></span><span class="brand-name">Immich <span>Lite</span></span></div>
+    <h1>Sign in to your server</h1>
+    <p class="hint">Your photos from Immich, on this TV.</p>
+
     <label for="server">Server address</label>
     <input id="server" type="text" placeholder="http://192.168.1.10:2283" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <label for="apikey">API key</label>
-    <input id="apikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
-    <button id="connect" type="button">Connect</button>
+    <div class="chips"><span id="chip-http" class="chip" tabindex="0">http://</span><span id="chip-https" class="chip" tabindex="0">https://</span><span id="chip-port" class="chip" tabindex="0">:2283</span></div>
+
+    <div class="segmented"><span id="mode-login" class="seg" tabindex="0"></span><span id="mode-key" class="seg" tabindex="0"></span></div>
+
+    <div id="login-fields">
+      <label for="email">Email</label>
+      <input id="email" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="off">
+    </div>
+    <div id="key-fields" class="hidden">
+      <label for="apikey">API key</label>
+      <input id="apikey" type="password" autocomplete="off" autocapitalize="off" spellcheck="false">
+    </div>
+
+    <button id="connect" type="button">Sign in</button>
     <div id="setup-msg" class="msg"></div>
+  </div>
+  <div class="setup-right">
+    <div class="help-card">
+      <div class="help-title">Typing on a TV</div>
+      <div class="help-step"><span class="num">1</span>Press <b>OK</b> on a box to open the on-screen keyboard.</div>
+      <div class="help-step"><span class="num">2</span>Use the <b>http://</b> and <b>:2283</b> shortcuts to save typing the address.</div>
+      <div class="help-step"><span class="num">3</span>Sign in with the same email and password you use for Immich.</div>
+      <div class="help-sub">Prefer an API key? Create one in Immich under Account Settings &rarr; API Keys, with all permissions.</div>
+    </div>
   </div>
 </div>
 
 <div id="browse" class="screen hidden">
-  <div id="header">
-    <div id="tabs"><span class="tab">Photos</span><span class="tab">Explore</span><span class="tab">Map</span><span class="tab">Favorites</span><span class="tab">Albums</span><span class="tab">Search</span><span class="tab">Settings</span><span class="tab play">&#9654; Slideshow</span></div>
-    <div id="when"></div>
-    <div id="title"></div>
+  <div id="rail">
+    <div class="rail-brand"><span id="rail-logo"></span><span class="rail-label brand-name">Immich <span>Lite</span></span></div>
+    <div id="tabs"></div>
+    <div id="rail-bottom"></div>
   </div>
-  <div id="grid"></div>
-  <div id="settings" class="hidden"></div>
-  <div id="search" class="hidden"></div>
-  <div id="map" class="hidden"></div>
-  <div id="status"></div>
+  <div id="main">
+    <div id="pagehead"><div id="crumb"></div><div id="title"></div></div>
+    <div id="when"></div>
+    <div id="grid"></div>
+    <div id="settings" class="hidden"></div>
+    <div id="search" class="hidden"></div>
+    <div id="map" class="hidden"></div>
+    <div id="slides" class="hidden"></div>
+    <div id="status"></div>
+  </div>
 </div>
 
 <div id="viewer" class="screen hidden">
   <img id="viewer-img" alt="">
   <div id="viewer-status"></div>
   <div id="viewer-toast" class="hidden"></div>
-  <div id="viewer-bar"><span id="viewer-caption"></span><span id="viewer-play"></span></div>
+  <div id="viewer-bar"><div id="viewer-caption"></div><div id="viewer-play"></div></div>
+  <div id="viewer-progress"><div id="viewer-progress-fill"></div></div>
 </div>
 
 <script src="js/util.js"></script>
+<script src="js/icons.js"></script>
 <script src="js/immich.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/search.js"></script>
 <script src="js/map.js"></script>
+<script src="js/slides.js"></script>
 <script src="js/grid.js"></script>
 <script src="js/details.js"></script>
 <script src="js/viewer.js"></script>

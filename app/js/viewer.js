@@ -2,7 +2,8 @@
 var Viewer = (function () {
   'use strict';
 
-  var root, img, bar, caption, hint, status, toastEl;
+  var root, img, bar, caption, hint, status, toastEl, progress;
+  var okLabel = 'Slideshow';
   var opts = null, index = 0, playing = false, timer = null, toastTimer = null, preload = null;
 
   function init() {
@@ -13,6 +14,7 @@ var Viewer = (function () {
     hint = U.$('viewer-play');
     status = U.$('viewer-status');
     toastEl = U.$('viewer-toast');
+    progress = U.$('viewer-progress-fill');
     img.onload = function () { U.removeClass(img, 'loading'); schedule(); };
     img.onerror = function () {
       U.removeClass(img, 'loading');
@@ -90,11 +92,42 @@ var Viewer = (function () {
     }
   }
 
+  /* Bottom-left: the date big, then favorite, stars, position and stack on one line. */
   function drawCaption() {
-    var it = opts.items[index];
-    caption.textContent = (it.isFavorite ? '♥  ' : '') + (it.rating > 0 ? Details.stars(it.rating) + '  ' : '') +
-      U.fmtDate(it.date) + '     ' +
-      (opts.shuffle ? 'Shuffle' : (index + 1) + ' / ' + opts.items.length);
+    var it = opts.items[index], date = document.createElement('div'), meta = document.createElement('div'), parts = [], st;
+    date.className = 'v-date';
+    date.textContent = U.fmtDateLong(it.date) || ' ';
+    meta.className = 'v-meta';
+    if (it.isFavorite) { parts.push('♥ Favorite'); }
+    parts.push(opts.shuffle ? 'Shuffle' : (index + 1) + ' of ' + opts.items.length);
+    if (stackItem) { parts.push('Stack ' + (stackPos + 1) + ' of ' + (stackList ? stackList.length : stackItem.stackCount)); }
+    if (it.rating > 0) {
+      st = document.createElement('span');
+      st.className = 'star';
+      st.textContent = Details.stars(it.rating) + '   ';
+      meta.appendChild(st);
+    }
+    meta.appendChild(document.createTextNode(parts.join('   ·   ')));
+    caption.innerHTML = '';
+    caption.appendChild(date);
+    caption.appendChild(meta);
+  }
+
+  /* Bottom-right: what the keys do, as keycaps. */
+  function renderHint() {
+    var list = [['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
+    if (stackItem) { list.push(['CH', 'Stack']); }
+    hint.innerHTML = '';
+    for (i = 0; i < list.length; i++) {
+      h = document.createElement('span');
+      h.className = 'keyhint';
+      cap = document.createElement('span');
+      cap.className = 'keycap';
+      cap.textContent = list[i][0];
+      h.appendChild(cap);
+      h.appendChild(document.createTextNode(list[i][1]));
+      hint.appendChild(h);
+    }
   }
 
   function toggleFavorite() {
@@ -114,13 +147,28 @@ var Viewer = (function () {
      loads don't skip photos. */
   function schedule() {
     clearTimeout(timer);
+    runProgress(playing && opts ? Settings.slideMs() : 0);
     if (playing && opts) { timer = setTimeout(next, Settings.slideMs()); }
+  }
+
+  /* The thin line along the bottom fills up until the next slide (hidden when paused). */
+  function runProgress(ms) {
+    var st = progress.style;
+    st.webkitTransition = st.transition = 'none';
+    st.width = '0';
+    U.toggleClass(progress.parentNode, 'hidden', !ms);
+    if (!ms) { return; }
+    progress.offsetWidth; // apply the reset before animating again
+    st.webkitTransition = 'width ' + ms + 'ms linear';
+    st.transition = 'width ' + ms + 'ms linear';
+    st.width = '100%';
   }
 
   function setPlaying(on, quiet) {
     var was = playing;
     playing = on;
-    hint.textContent = (on ? 'OK: pause' : 'OK: slideshow') + '     ▲ favorite     ▼ details     Back: exit';
+    okLabel = on ? 'Pause' : 'Slideshow';
+    renderHint();
     if (on) { U.hide(bar); }
     schedule();
     if (!quiet && on !== was) {
@@ -143,17 +191,9 @@ var Viewer = (function () {
      CH+/CH- show the stack's other members in place, without moving off the timeline
      item, so Left/Right still go to the next timeline photo. Members come from
      opts.stack(item, cb(err, assets)), primary first, loaded on the first CH press. */
-  var stackLabel, stackHint, stackItem = null, stackList = null, stackPos = 0, stackBusy = false, stackToken = 0;
+  var stackItem = null, stackList = null, stackPos = 0, stackBusy = false, stackToken = 0;
 
-  function initStack() {
-    stackLabel = document.createElement('span');
-    stackLabel.className = 'viewer-stack';
-    bar.insertBefore(stackLabel, caption.nextSibling);
-    stackHint = document.createElement('span');
-    stackHint.className = 'viewer-stack-hint hidden';
-    stackHint.textContent = 'CH+/CH-: stack';
-    bar.appendChild(stackHint);
-  }
+  function initStack() {}
 
   function resetStack(it) {
     stackItem = it && it.stackId && it.stackCount > 1 ? it : null;
@@ -165,9 +205,8 @@ var Viewer = (function () {
   }
 
   function drawStack() {
-    var n = stackList ? stackList.length : (stackItem ? stackItem.stackCount : 0);
-    stackLabel.textContent = stackItem ? '     Stack ' + (stackPos + 1) + ' / ' + n : '';
-    U.toggleClass(stackHint, 'hidden', !stackItem);
+    if (opts && opts.items[index]) { drawCaption(); }
+    renderHint();
   }
 
   function stepStack(dir) {
@@ -326,10 +365,11 @@ var Viewer = (function () {
     toast('This video can\'t play on this TV');
   }
 
-  /* Only the OK part of the hint changes; the rest stays as setPlaying wrote it. */
+  /* On a video, OK plays or pauses it instead of the slideshow. */
   function drawVideoHint() {
     if (!videoItem) { return; }
-    hint.textContent = hint.textContent.replace(/^OK: \S+( video)?/, videoPlaying() ? 'OK: pause video' : 'OK: play video');
+    okLabel = videoPlaying() ? 'Pause video' : 'Play video';
+    renderHint();
   }
 
   /* Elapsed / total, and the progress line. Before the video loads, the length comes

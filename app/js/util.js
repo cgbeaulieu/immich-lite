@@ -43,6 +43,12 @@ var U = {
     return U.WEEKDAYS[d.getUTCDay()] + ', ' + U.MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + d.getUTCFullYear();
   },
 
+  /* "2025-04-30" -> "April 30, 2025" */
+  fmtDateLong: function (day) {
+    if (!day || day.length < 10) { return ''; }
+    return U.MONTHS_LONG[parseInt(day.substr(5, 2), 10) - 1] + ' ' + parseInt(day.substr(8, 2), 10) + ', ' + day.substr(0, 4);
+  },
+
   /* "2026-09" -> "September 2026" */
   fmtMonthLong: function (month) {
     if (!month || month.length < 7) { return ''; }

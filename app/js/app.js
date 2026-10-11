@@ -8,17 +8,28 @@
 (function () {
   'use strict';
 
-  var TABS = ['photos', 'explore', 'map', 'favorites', 'albums', 'search', 'settings'];
-  var TAB_PLAY = TABS.length; // the Slideshow button after the tabs
-  var SETUP_FIELDS = ['server', 'apikey', 'connect'];
+  /* The sidebar. Each entry opens a root view; the bottom two are account actions. */
+  var RAIL = [
+    { key: 'photos', label: 'Photos', icon: 'photos' },
+    { key: 'search', label: 'Search', icon: 'search' },
+    { key: 'explore', label: 'Explore', icon: 'explore' },
+    { key: 'map', label: 'Map', icon: 'map' },
+    { key: 'favorites', label: 'Favorites', icon: 'heart' },
+    { key: 'albums', label: 'Albums', icon: 'albums' },
+    { key: 'slides', label: 'Slideshow', icon: 'slideshow' },
+    { key: 'settings', label: 'Settings', icon: 'settings' },
+    { key: 'account', label: 'Account', icon: 'user', bottom: true },
+    { key: 'signout', label: 'Sign out', icon: 'logout', bottom: true }
+  ];
   var SHUFFLE_BATCH = 100;
   var EXPLORE_ROW = 12;       // people / places shown on Explore before "All"
 
   var client = null;
   var grid = null;
   var screen = 'setup';       // 'setup' | 'browse' | 'viewer'
-  var zone = 'panel';         // in browse: 'tabs' | 'panel'
-  var tabFocus = 0;
+  var zone = 'panel';         // in browse: 'rail' (the sidebar) | 'panel' (the page)
+  var railFocus = 0;
+  var setupMode = 'login';    // sign in with 'login' (email + password) or 'key' (API key)
   var stack = [];
   var showToken = 0;
   var autoplayNext = false;   // start a slideshow when the next asset view's first photos arrive
@@ -144,7 +155,7 @@
   }
 
   function searchView(q) {
-    return assetView('search', '“' + q + '”',
+    return assetView('search', q,
       function () { return new PagedSource(function (page, cb) { client.searchSmart(q, page, cb); }); },
       null, false, 'Nothing found for “' + q + '”');
   }
@@ -156,7 +167,7 @@
   }
 
   function albumsView() {
-    return cardsView('albums', '', function (cb) {
+    return cardsView('albums', 'Albums', function (cb) {
       client.albums(function (err, list) {
         if (err) { return cb(err); }
         list.sort(function (a, b) {
@@ -187,7 +198,7 @@
   }
 
   function exploreView() {
-    return cardsView('explore', '', function (cb) {
+    return cardsView('explore', 'Explore', function (cb) {
       var got = {}, errors = [], pending = 3;
       function done() {
         var sections = [], items;
@@ -200,12 +211,12 @@
         }
         if (got.people && got.people.length) {
           items = map(got.people.slice(0, EXPLORE_ROW), function (p) { return { kind: 'person', person: p }; });
-          if (got.people.length > EXPLORE_ROW) { items.push({ kind: 'more', label: 'All people', sub: got.people.length + ' people', open: peopleView }); }
+          if (got.people.length > EXPLORE_ROW) { items.push({ kind: 'more', icon: 'people', label: 'All people', sub: got.people.length + ' people', open: peopleView }); }
           sections.push({ key: 'people', title: 'People', items: items });
         }
         if (got.places && got.places.length) {
           items = map(got.places.slice(0, EXPLORE_ROW), function (pl) { return { kind: 'place', place: pl }; });
-          if (got.places.length > EXPLORE_ROW) { items.push({ kind: 'more', label: 'All places', sub: got.places.length + ' places', open: placesView }); }
+          if (got.places.length > EXPLORE_ROW) { items.push({ kind: 'more', icon: 'place', label: 'All places', sub: got.places.length + ' places', open: placesView }); }
           sections.push({ key: 'places', title: 'Places', items: items });
         }
         sections.push({ key: 'library', title: 'Library', items: libraryCards() });
@@ -222,9 +233,9 @@
   /* The Library row on Explore. Text-only cards (no cover to show). */
   function libraryCards() {
     return [
-      { kind: 'archive', label: 'Archive', sub: 'Kept out of Photos' },
-      { kind: 'folders', label: 'Folders', sub: 'Browse by folder' },
-      { kind: 'tags', label: 'Tags', sub: 'Browse by tag' }
+      { kind: 'archive', icon: 'archive', label: 'Archive', sub: 'Kept out of Photos' },
+      { kind: 'folders', icon: 'folder', label: 'Folders', sub: 'Browse by folder' },
+      { kind: 'tags', icon: 'tag', label: 'Tags', sub: 'Browse by tag' }
     ];
   }
 
@@ -363,7 +374,7 @@
       case 'favorites': return favoritesView();
       case 'albums': return albumsView();
     }
-    return { kind: name, tab: name, title: '' }; // map, search, settings
+    return { kind: name, tab: name, title: name === 'settings' ? 'Settings' : '' }; // map, search, settings, slides
   }
 
   function map(list, fn) {
@@ -389,27 +400,28 @@
     switch (it.kind) {
       case 'album':
         a = it.album;
-        return { shape: 'card', thumb: a.albumThumbnailAssetId ? client.thumbUrl(a.albumThumbnailAssetId) : null,
-          label: a.albumName || 'Untitled', sub: a.assetCount + (a.assetCount === 1 ? ' item' : ' items') };
+        return { shape: 'card', icon: a.albumThumbnailAssetId ? null : 'albums',
+          thumb: a.albumThumbnailAssetId ? client.thumbUrl(a.albumThumbnailAssetId) : null,
+          label: a.albumName || 'Untitled', sub: a.assetCount + (a.assetCount === 1 ? ' item' : ' items') + (a.shared ? '  ·  shared' : '') };
       case 'person':
         return { shape: 'person', thumb: client.personThumbUrl(it.person.id), label: it.person.name || ' ' };
       case 'place':
-        return { shape: 'card', thumb: client.thumbUrl(it.place.assetId), label: it.place.city, sub: it.place.country };
+        return { shape: 'card overlay', thumb: client.thumbUrl(it.place.assetId), label: it.place.city, sub: it.place.country };
       case 'memory':
-        return { shape: 'card', thumb: client.thumbUrl(it.memory.assets[0].id), label: it.memory.title,
+        return { shape: 'card overlay', thumb: client.thumbUrl(it.memory.assets[0].id), label: it.memory.title,
           sub: it.memory.assets.length + (it.memory.assets.length === 1 ? ' photo' : ' photos') };
       case 'tag': // "Places/Canada": the name big, its parents under it
         a = String(it.tag.value || it.tag.name);
-        return { shape: 'card more', thumb: null, label: it.tag.name || a,
+        return { shape: 'card iconcard', icon: 'tag', thumb: null, label: it.tag.name || a,
           sub: a.lastIndexOf('/') > 0 ? a.substr(0, a.lastIndexOf('/')).replace(/\//g, ' / ') : 'Tag' };
       case 'folder':
-        return { shape: 'card more', thumb: null, label: it.node.name, sub: folderSub(it.node) };
+        return { shape: 'card iconcard', icon: 'folder', thumb: null, label: it.node.name, sub: folderSub(it.node) };
       case 'folderPhotos':
         a = it.node.assets;
-        return { shape: a && a.length ? 'card' : 'card more', thumb: a && a.length ? client.thumbUrl(a[0].id) : null,
+        return { shape: a && a.length ? 'card' : 'card iconcard', icon: 'photos', thumb: a && a.length ? client.thumbUrl(a[0].id) : null,
           label: 'Photos in this folder', sub: a ? a.length + (a.length === 1 ? ' item' : ' items') : '' };
     }
-    return { shape: 'card more', thumb: null, label: it.label, sub: it.sub };
+    return { shape: 'card iconcard', icon: it.icon || 'chevron', thumb: null, label: it.label, sub: it.sub };
   }
 
   function folderSub(node) {
@@ -418,37 +430,93 @@
     return n + (n === 1 ? ' folder' : ' folders') + (node.hasPhotos ? ' and photos' : '');
   }
 
-  function setStatus(text) { U.$('status').textContent = text || ''; }
-
-  function drawTabs() {
-    var tabs = U.$('tabs').children, v = view(), current = v ? TABS.indexOf(v.tab) : -1, i;
-    if (tabFocus > lastTab()) { tabFocus = lastTab(); }
-    for (i = 0; i < tabs.length; i++) {
-      U.toggleClass(tabs[i], 'current', i === current);
-      U.toggleClass(tabs[i], 'focused', zone === 'tabs' && i === tabFocus);
+  /* The middle of the page: a spinner while loading, an icon for empty pages, red for errors. */
+  function setStatus(text, mode) {
+    var st = U.$('status'), e;
+    st.innerHTML = '';
+    st.className = mode === 'error' ? 'error' : '';
+    if (!text) { return; }
+    if (mode === 'loading') {
+      e = document.createElement('div');
+      e.className = 'spinner';
+      st.appendChild(e);
+    } else if (mode === 'empty') {
+      st.innerHTML = Icons.svg('photos', 'state-icon');
     }
-    U.toggleClass(tabs[TAB_PLAY], 'hidden', lastTab() !== TAB_PLAY);
+    st.appendChild(document.createTextNode(text));
   }
 
-  /* The Slideshow button only shows where there are photos to play. */
-  function lastTab() {
-    var v = view();
-    return v && (v.kind === 'assets' || v.kind === 'cards') ? TAB_PLAY : TAB_PLAY - 1;
+  /* An expired sign-in goes back to the sign-in page; anything else shows in the page. */
+  function showError(err) {
+    if (err.status === 401 && client && client.token) { return showSetup('Your sign-in has expired. Please sign in again.'); }
+    setStatus(err.message, 'error');
+  }
+
+  function buildRail() {
+    var tabs = U.$('tabs'), bottom = U.$('rail-bottom'), i;
+    tabs.innerHTML = '';
+    bottom.innerHTML = '';
+    for (i = 0; i < RAIL.length; i++) {
+      (function (r, i) {
+        var e = document.createElement('div');
+        e.className = 'rail-item';
+        e.innerHTML = Icons.svg(r.icon) + '<span class="rail-label"></span>';
+        e.lastChild.textContent = r.label;
+        e.onmouseover = function () { railFocus = i; setZone('rail'); };
+        e.onclick = function () { openRail(r.key); };
+        (r.bottom ? bottom : tabs).appendChild(e);
+        r.el = e;
+      })(RAIL[i], i);
+    }
+  }
+
+  function railIndex(key) {
+    for (var i = 0; i < RAIL.length; i++) { if (RAIL[i].key === key) { return i; } }
+    return -1;
+  }
+
+  /* The sidebar opens (labels showing) while it has focus. */
+  function drawRail() {
+    var v = view(), current = v ? railIndex(v.tab) : -1, i;
+    U.toggleClass(U.$('rail'), 'open', zone === 'rail');
+    for (i = 0; i < RAIL.length; i++) {
+      U.toggleClass(RAIL[i].el, 'current', i === current);
+      U.toggleClass(RAIL[i].el, 'focused', zone === 'rail' && i === railFocus);
+    }
+  }
+
+  /* Shows your name on the sidebar's account entry. */
+  function nameAccount(user) {
+    RAIL[railIndex('account')].el.lastChild.textContent = user && (user.name || user.email) || 'Account';
   }
 
   function setZone(z) {
     var v = view(), inPanel = z === 'panel';
+    if (z === 'rail' && zone !== 'rail' && v) { railFocus = Math.max(0, railIndex(v.tab)); }
     zone = z;
     grid.setActive(inPanel && !!v && (v.kind === 'assets' || v.kind === 'cards'));
     Settings.setActive(inPanel && !!v && v.kind === 'settings');
     Search.setActive(inPanel && !!v && v.kind === 'search');
+    Slides.setActive(inPanel && !!v && v.kind === 'slides');
     if (!inPanel && document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
-    drawTabs();
+    drawRail();
   }
 
   function showPanel(name) {
-    var panels = ['grid', 'settings', 'search', 'map'], i;
+    var panels = ['grid', 'settings', 'search', 'map', 'slides'], i;
     for (i = 0; i < panels.length; i++) { U.toggleClass(U.$(panels[i]), 'hidden', panels[i] !== name); }
+  }
+
+  /* The page heading, with "< Explore" above it on pages opened from another page. */
+  function drawHead(v) {
+    var prev = stack[stack.length - 2], crumb = U.$('crumb'), heading = v.title || '';
+    U.toggleClass(U.$('main'), 'head', !!(heading || prev));
+    U.$('title').textContent = heading;
+    crumb.innerHTML = '';
+    if (prev) {
+      crumb.innerHTML = Icons.svg('back');
+      crumb.appendChild(document.createTextNode(prev.title || RAIL[railIndex(prev.tab)].label));
+    }
   }
 
   /* Thumbnail size sets the height of the justified photo rows. Immich's desktop web
@@ -459,11 +527,11 @@
 
   // ---------- showing views ----------
 
-  function openTab(i) {
-    tabFocus = i;
-    if (i === TAB_PLAY) { return startSlideshow(); }
+  function openRail(key) {
+    if (key === 'signout') { return signOut(); }
+    if (key === 'account') { key = 'settings'; }
     autoplayNext = false;
-    stack = [rootView(TABS[i])];
+    stack = [rootView(key)];
     show(view(), 0);
   }
 
@@ -483,11 +551,18 @@
 
   function show(v, restoreFocus) {
     var token = ++showToken;
-    U.$('title').textContent = v.title || '';
     U.$('when').textContent = '';
     setStatus('');
-    drawTabs();
+    Slides.close();
+    drawHead(v);
+    drawRail();
 
+    if (v.kind === 'slides') {
+      showPanel('slides');
+      Slides.open({ load: slideSources, onPointer: pointer });
+      setZone('panel');
+      return;
+    }
     if (v.kind === 'settings') { showPanel('settings'); openSettings(); setZone('panel'); return; }
     if (v.kind === 'search') {
       showPanel('search');
@@ -513,10 +588,10 @@
     if (v.kind === 'cards') {
       grid.reset(renderCard);
       if (v.cache) { return fillCards(v, v.cache, restoreFocus); }
-      setStatus('Loading...');
+      setStatus('Loading', 'loading');
       v.load(function (err, sections) {
         if (token !== showToken) { return; }
-        if (err) { return setStatus(err.message); }
+        if (err) { return showError(err); }
         v.cache = sections;
         fillCards(v, sections, restoreFocus);
       });
@@ -525,7 +600,7 @@
 
     v.source = v.makeSource();
     grid.reset(renderAsset);
-    setStatus('Loading...');
+    setStatus('Loading photos', 'loading');
     loadMore();
   }
 
@@ -537,7 +612,7 @@
         any = true;
       }
     }
-    setStatus(any ? '' : v.empty);
+    setStatus(any ? '' : v.empty, 'empty');
     if (any) {
       setZone('panel');
       grid.setFocus(restoreFocus || 0);
@@ -556,7 +631,7 @@
     src.more(function (err, items) {
       var first;
       if (view() !== v || v.source !== src) { return; } // user moved on meanwhile
-      if (err) { setStatus(err.message); if (cb) { cb(false); } return; }
+      if (err) { showError(err); if (cb) { cb(false); } return; }
       if (Settings.get('showVideos') === 'hide') {
         items = items.filter(function (it) { return it.isImage; });
       }
@@ -570,7 +645,7 @@
       }
       if (!items.length) {
         if (!src.done) { return loadMore(cb); } // an empty month or page, keep going
-        if (first) { setStatus(v.empty); autoplayNext = false; }
+        if (first) { setStatus(v.empty, 'empty'); autoplayNext = false; }
       }
       if (cb) { cb(items.length > 0); }
     });
@@ -600,13 +675,15 @@
         function current() { return view() === v && client === c; }
         c.me(function (err, user) {
           if (!current()) { return; }
-          if (err) { return cb(['Could not load your account: ' + err.message, 'Server: ' + c.server]); }
+          if (err) { return cb(['Could not load your account: ' + err.message, 'Server: ' + c.server], null); }
           c.version(function (err2, ver) {
             if (!current()) { return; }
             cb([
-              'Signed in as ' + (user.name || '') + (user.email ? ' (' + user.email + ')' : ''),
-              'Server: ' + c.server + (err2 || !ver ? '' : '   Immich v' + ver.major + '.' + ver.minor + '.' + ver.patch)
-            ]);
+              user.name || '',
+              user.email || '',
+              c.server + (err2 || !ver ? '' : '   ·   Immich ' + ver.major + '.' + ver.minor + '.' + ver.patch) +
+                (c.token ? '   ·   signed in' : '   ·   API key')
+            ], { name: user.name, email: user.email });
           });
         });
       },
@@ -633,8 +710,8 @@
           if (!list || !list.length) {
             return cb('No partners share their photos with you. In Immich, they add you under Account Settings > Partner Sharing.', []);
           }
-          cb('Partners who share their photos with you. A hidden partner\'s photos stay out of\n' +
-            'Photos, Search and the map (Immich\'s "Show in timeline" setting, saved to your account):',
+          cb('A hidden partner\'s photos stay out of Photos, Search and the map. This is Immich\'s\n' +
+            '"Show in timeline" setting, saved to your account.',
             map(list, partnerRow));
         });
         function partnerRow(p) {
@@ -648,14 +725,8 @@
           return row;
         }
       },
-      changeServer: showSetup,
-      signOut: function () {
-        Store.set('apiKey', '');
-        client = null;
-        stack = [];
-        grid.reset(renderAsset);
-        showSetup();
-      },
+      changeServer: function () { showSetup(); },
+      signOut: signOut,
       onChange: function (key) {
         if (key === 'withPartners') { MapView.reset(); }
       },
@@ -783,17 +854,23 @@
       });
     }
 
-    setStatus('Shuffling...');
+    playSession(items, more, true);
+  }
+
+  /* Plays photos that more(cb(gotMore)) adds to items, full screen from the start. */
+  function playSession(items, more, shuffled) {
+    var c = client;
+    setStatus(shuffled ? 'Shuffling' : 'Starting the slideshow', 'loading');
     more(function (got) {
       if (client !== c || screen !== 'browse') { return; }
-      if (!got) { setStatus('No photos to show'); return; }
+      if (!got) { setStatus('No photos to show', 'empty'); return; }
       setStatus('');
       screen = 'viewer';
       Viewer.open({
         items: items,
         index: 0,
         autoplay: true,
-        shuffle: true,
+        shuffle: shuffled,
         urlFor: function (it) { return c.thumbUrl(it.id, 'preview'); },
         more: more,
         toggleFavorite: toggleFavorite,
@@ -802,6 +879,92 @@
         onClose: function () { screen = 'browse'; }
       });
     });
+  }
+
+  /* A slideshow of a view's photos in order, without opening the view first (the
+     Slideshow page). Videos are left out. */
+  function startOrdered(target) {
+    var items = [], src = target.makeSource();
+    function more(cb) {
+      if (src.done) { return cb(false); }
+      src.more(function (err, list) {
+        var added = 0, i;
+        if (err) { showError(err); return cb(false); }
+        for (i = 0; i < list.length; i++) { if (list[i].isImage) { items.push(list[i]); added++; } }
+        if (!added && !src.done) { return more(cb); }
+        cb(added > 0);
+      });
+    }
+    playSession(items, more, false);
+  }
+
+  function playSource(target) {
+    if (Settings.get('slideOrder') === 'shuffle') { startShuffle(target); } else { startOrdered(target); }
+  }
+
+  // ---------- slideshow page ----------
+
+  /* What the Slideshow page offers: everything, favorites, today's memories, named
+     people and albums. Each source finds its own cover photo for the big picture. */
+  function slideSources(cb) {
+    var c = client, got = {}, pending = 3;
+    function done() {
+      var list = [], i, n = 0, a, m, p;
+      if (--pending || client !== c) { return; }
+      list.push(source('All photos', 'Your whole library', 'photos', photosView(), randomCover({ visibility: 'timeline' })));
+      list.push(source('Favorites', 'Photos you\u2019ve starred', 'heart', favoritesView(), randomCover({ isFavorite: true })));
+      for (i = 0; i < got.memories.length; i++) {
+        m = got.memories[i];
+        list.push(source(m.title, m.assets.length + ' photos', 'memory', staticView('slides', m.title, m.assets), fixedCover(m.assets[0].id)));
+      }
+      for (i = 0; i < got.people.length && n < 8; i++) {
+        p = got.people[i];
+        if (!p.name) { continue; }
+        n++;
+        list.push(source(p.name, 'Person', 'people', personView(p), personCover(p)));
+      }
+      got.albums.sort(function (x, y) {
+        var u = x.lastModifiedAssetTimestamp || x.updatedAt || '', w = y.lastModifiedAssetTimestamp || y.updatedAt || '';
+        return u < w ? 1 : (u > w ? -1 : 0);
+      });
+      for (i = 0; i < got.albums.length; i++) {
+        a = got.albums[i];
+        if (!a.assetCount) { continue; }
+        list.push(source(a.albumName || 'Untitled album', a.assetCount + (a.assetCount === 1 ? ' item' : ' items'), 'albums',
+          albumView(a), fixedCover(a.albumThumbnailAssetId)));
+      }
+      cb(list);
+    }
+    c.memories(function (err, list) { got.memories = err ? [] : list || []; done(); });
+    c.people(function (err, list) { got.people = err ? [] : list || []; done(); });
+    c.albums(function (err, list) { got.albums = err ? [] : list || []; done(); });
+  }
+
+  function source(name, sub, icon, target, loadCover) {
+    return { name: name, sub: sub, icon: icon, loadCover: loadCover, play: function () { playSource(target); } };
+  }
+
+  /* Covers: cb(small url for the card, big url for the hero picture). */
+  function randomCover(filter) {
+    return function (cb) {
+      client.randomPhotos(filter, 1, function (err, list) {
+        var id = !err && list && list[0] && list[0].id;
+        cb(id ? client.thumbUrl(id, 'thumbnail') : null, id ? client.thumbUrl(id, 'preview') : null);
+      });
+    };
+  }
+
+  function fixedCover(id) {
+    return function (cb) { cb(id ? client.thumbUrl(id, 'thumbnail') : null, id ? client.thumbUrl(id, 'preview') : null); };
+  }
+
+  function personCover(p) {
+    return function (cb) {
+      client.randomPhotos({ personIds: [p.id] }, 1, function (err, list) {
+        var id = !err && list && list[0] && list[0].id;
+        cb(client.personThumbUrl(p.id), id ? client.thumbUrl(id, 'preview') : null);
+      });
+    };
   }
 
   function select(item, index) {
@@ -815,7 +978,7 @@
     openViewer(index, false);
   }
 
-  // ---------- setup screen ----------
+  // ---------- setup (sign-in) screen ----------
 
   function defaultServer() {
     // Served by tools/devserver.py, which proxies /api to Immich on the same origin.
@@ -829,19 +992,49 @@
     U.toggleClass(U.$('browse'), 'hidden', name === 'setup');
   }
 
-  function showSetup() {
+  function showSetup(message) {
     var server = Store.get('server', '') || defaultServer();
     U.$('server').value = server;
+    U.$('email').value = Store.get('email', '');
+    U.$('password').value = '';
     U.$('apikey').value = Store.get('apiKey', '');
-    setupMsg(client ? 'Press Back to return to your photos.' : '');
+    setMode(Store.get('authMode', 'login'));
+    setupMsg(message || (client ? 'Press Back to return to your photos.' : ''), !!message);
     showScreen('setup');
-    U.$(server && U.$('apikey').value ? 'connect' : 'server').focus();
+    U.$(!server ? 'server' : (setupMode === 'login' ? (U.$('email').value ? 'password' : 'email') : 'apikey')).focus();
   }
 
   function setupMsg(text, isError) {
     var m = U.$('setup-msg');
     m.textContent = text || '';
     U.toggleClass(m, 'error', !!isError);
+  }
+
+  /* Email + password, or an API key: one of the two field groups shows. */
+  function setMode(mode) {
+    setupMode = mode === 'key' ? 'key' : 'login';
+    U.toggleClass(U.$('login-fields'), 'hidden', setupMode !== 'login');
+    U.toggleClass(U.$('key-fields'), 'hidden', setupMode !== 'key');
+    U.toggleClass(U.$('mode-login'), 'on', setupMode === 'login');
+    U.toggleClass(U.$('mode-key'), 'on', setupMode === 'key');
+  }
+
+  /* Focus moves in rows; Left/Right move within the chip and sign-in-method rows. */
+  function setupRows() {
+    return [['server'], ['chip-http', 'chip-https', 'chip-port'], ['mode-login', 'mode-key']]
+      .concat(setupMode === 'login' ? [['email'], ['password']] : [['apikey']])
+      .concat([['connect']]);
+  }
+
+  /* The address shortcuts: swap the http:// / https:// prefix, or add Immich's port. */
+  function applyChip(id) {
+    var input = U.$('server'), v = input.value.trim(), host;
+    if (id === 'chip-port') {
+      host = v.replace(/^https?:\/\//i, '');
+      if (!/:\d+\/?$/.test(host)) { input.value = v.replace(/\/+$/, '') + ':2283'; }
+    } else {
+      input.value = (id === 'chip-https' ? 'https://' : 'http://') + v.replace(/^https?:\/\//i, '');
+    }
   }
 
   /* Immich sends no CORS headers, so a page served over http can't call it at another
@@ -854,21 +1047,60 @@
   }
 
   function connect() {
-    var server = U.$('server').value.trim(), key = U.$('apikey').value.trim();
-    var c;
+    var server = U.$('server').value.trim().replace(/\/+$/, ''), email, password, key, c;
+    function failed(err) { setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true); }
     if (!/^https?:\/\//i.test(server)) { return setupMsg('The server address must start with http:// or https://', true); }
+
+    if (setupMode === 'login') {
+      email = U.$('email').value.trim();
+      password = U.$('password').value;
+      if (!email || !password) { return setupMsg('Enter the email and password you use for Immich.', true); }
+      setupMsg('Signing in...');
+      Immich.login(server, email, password, function (err, res) {
+        if (err) { return failed(err); }
+        Store.set('email', email);
+        signedIn(new Immich.Client(server, null, res.accessToken), server);
+      });
+      return;
+    }
+
+    key = U.$('apikey').value.trim();
     if (!key) { return setupMsg('Enter an API key. Create one in Immich: Account Settings > API Keys.', true); }
     c = new Immich.Client(server, key);
     setupMsg('Connecting...');
     c.me(function (err) {
-      if (err) { return setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true); }
-      Store.set('server', server);
-      Store.set('apiKey', key);
-      client = c;
-      document.activeElement.blur();
-      showScreen('browse');
-      openTab(0);
+      if (err) { return failed(err); }
+      signedIn(c, server);
     });
+  }
+
+  /* Only the server, the sign-in method and the key or session token are kept;
+     never the password. */
+  function signedIn(c, server) {
+    Store.set('server', server);
+    Store.set('authMode', setupMode);
+    Store.set('apiKey', c.apiKey);
+    Store.set('token', c.token);
+    client = c;
+    if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
+    showScreen('browse');
+    openRail('photos');
+    loadAccountName();
+  }
+
+  function signOut() {
+    if (client) { client.logout(); }
+    Store.set('apiKey', '');
+    Store.set('token', '');
+    client = null;
+    stack = [];
+    grid.reset(renderAsset);
+    showSetup();
+  }
+
+  function loadAccountName() {
+    var c = client;
+    c.me(function (err, user) { if (!err && client === c) { nameAccount(user); } });
   }
 
   // ---------- keys ----------
@@ -881,35 +1113,59 @@
     if (v.kind === 'settings') { return Settings.key(k); }
     if (v.kind === 'search') { return Search.key(k); }
     if (v.kind === 'map') { return MapView.key(k); }
+    if (v.kind === 'slides') { return Slides.key(k); }
     return grid.key(k);
   }
 
   function setupKey(k) {
-    var active = document.activeElement, cur = active ? SETUP_FIELDS.indexOf(active.id) : -1;
-    if (k === KEY.DOWN) { U.$(SETUP_FIELDS[Math.min(cur + 1, SETUP_FIELDS.length - 1)]).focus(); return true; }
-    if (k === KEY.UP) { U.$(SETUP_FIELDS[Math.max(cur - 1, 0)]).focus(); return true; }
-    if (k === KEY.OK && active && active.id === 'connect') { connect(); return true; }
-    if ((k === KEY.BACK || k === KEY.ESC) && client && stack.length) { showScreen('browse'); setZone('tabs'); return true; }
-    return false;
+    var rows = setupRows(), active = document.activeElement, id = active && active.id, r, c, line;
+    for (r = 0; r < rows.length; r++) { c = rows[r].indexOf(id); if (c !== -1) { break; } }
+    if (r === rows.length) { r = 0; c = 0; }
+    line = rows[r];
+    switch (k) {
+      case KEY.DOWN: if (r < rows.length - 1) { r++; } break;
+      case KEY.UP: if (r > 0) { r--; } break;
+      case KEY.LEFT: if (c > 0) { c--; } break;
+      case KEY.RIGHT: if (c < line.length - 1) { c++; } break;
+      case KEY.OK:
+        if (id === 'connect') { connect(); return true; }
+        if (/^chip-/.test(id)) { applyChip(id); return true; }
+        if (id === 'mode-login' || id === 'mode-key') { setMode(id === 'mode-key' ? 'key' : 'login'); return true; }
+        // OK in a filled password or key box signs in (the TV keyboard's Enter sends OK too).
+        if ((id === 'password' || id === 'apikey') && active.value) { connect(); return true; }
+        return false; // OK on a text box: let the TV open its keyboard
+      case KEY.BACK: case KEY.ESC:
+        if (client && stack.length) { showScreen('browse'); setZone('rail'); return true; }
+        return false;
+      default: return false;
+    }
+    // Moving onto the sign-in-method row lands on the chosen method.
+    if (rows[r][0] === 'mode-login' && (k === KEY.UP || k === KEY.DOWN)) { c = setupMode === 'key' ? 1 : 0; }
+    U.$(rows[r][Math.min(c, rows[r].length - 1)]).focus();
+    return true;
   }
 
   function browseKey(k) {
     var isBack = k === KEY.BACK || k === KEY.ESC || k === KEY.BACKSPACE;
-    if (k === KEY.PLAY) { startSlideshow(); return true; }
-    if (zone === 'tabs') {
-      if (k === KEY.LEFT) { tabFocus = Math.max(0, tabFocus - 1); drawTabs(); return true; }
-      if (k === KEY.RIGHT) { tabFocus = Math.min(lastTab(), tabFocus + 1); drawTabs(); return true; }
-      if (k === KEY.DOWN) { setZone('panel'); return true; }
-      if (k === KEY.OK) { openTab(tabFocus); return true; }
-      if (isBack) { back(); return true; }
+    if (k === KEY.PLAY) {
+      if (view() && view().kind === 'slides') { return Slides.key(KEY.OK); }
+      startSlideshow();
+      return true;
+    }
+    if (zone === 'rail') {
+      if (k === KEY.UP) { railFocus = Math.max(0, railFocus - 1); drawRail(); return true; }
+      if (k === KEY.DOWN) { railFocus = Math.min(RAIL.length - 1, railFocus + 1); drawRail(); return true; }
+      if (k === KEY.OK) { openRail(RAIL[railFocus].key); return true; }
+      if (k === KEY.RIGHT) { setZone('panel'); return true; }
+      if (isBack) { if (back()) { setZone('panel'); } return true; }
       return false;
     }
     if (isBack) {
-      if (!back()) { setZone('tabs'); }
+      if (!back()) { setZone('rail'); }
       return true;
     }
     if (panelKey(k)) { return true; }
-    if (k === KEY.UP) { setZone('tabs'); return true; } // up from the top of the page
+    if (k === KEY.LEFT || k === KEY.UP) { setZone('rail'); return true; } // off the edge of the page
     return false;
   }
 
@@ -933,7 +1189,12 @@
   // ---------- start ----------
 
   function start() {
-    var tabs = U.$('tabs').children, server, key, i;
+    var server, key, token;
+    U.$('brand-logo').innerHTML = Icons.logo();
+    U.$('rail-logo').innerHTML = Icons.logo();
+    U.$('mode-login').innerHTML = Icons.svg('user') + 'Email &amp; password';
+    U.$('mode-key').innerHTML = Icons.svg('key') + 'API key';
+    buildRail();
     Viewer.init();
     grid = new Grid(U.$('grid'), {
       onSelect: select,
@@ -942,25 +1203,25 @@
       onPointer: pointer,
       onFocus: function (item) {
         var v = view();
-        U.$('when').textContent = v && v.kind === 'assets' && item.date ? U.fmtMonth(item.date) : '';
+        U.$('when').textContent = v && v.kind === 'assets' && item.date ? U.fmtMonthLong(item.date.substr(0, 7)) : '';
       }
     });
 
-    for (i = 0; i < tabs.length; i++) {
-      (function (i) {
-        tabs[i].onmouseover = function () { tabFocus = i; setZone('tabs'); };
-        tabs[i].onclick = function () { openTab(i); };
-      })(i);
-    }
     U.$('connect').onclick = connect;
+    U.$('chip-http').onclick = U.$('chip-https').onclick = U.$('chip-port').onclick = function () { applyChip(this.id); };
+    U.$('mode-login').onclick = function () { setMode('login'); };
+    U.$('mode-key').onclick = function () { setMode('key'); };
     document.addEventListener('keydown', onKey, false);
 
     server = Store.get('server', '');
     key = Store.get('apiKey', '');
-    if (server && key) {
-      client = new Immich.Client(server, key);
+    token = Store.get('token', '');
+    setMode(Store.get('authMode', 'login'));
+    if (server && (key || token)) {
+      client = new Immich.Client(server, key, token);
       showScreen('browse');
-      openTab(0);
+      openRail('photos');
+      loadAccountName();
     } else {
       showSetup();
     }

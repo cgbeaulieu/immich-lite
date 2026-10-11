@@ -158,8 +158,20 @@ class Mock:
             return self.send({"res": "pong"})
         if path == "/api/server/version":
             return self.send({"major": 3, "minor": 3, "patch": 1, "prerelease": None})
-        if not (self.arg("apiKey") or self.h.headers.get("x-api-key")):
+        if path == "/api/auth/login" and method == "POST":
+            # Any email works; the password "wrong" is refused, to try the error message.
+            b = self.body()
+            if not b.get("email") or b.get("password") in (None, "", "wrong"):
+                return self.h.send_json(401, {"message": "Incorrect email or password", "statusCode": 401})
+            return self.send({"accessToken": "mock-session-token", "userId": "mock-user", "userEmail": b["email"],
+                              "name": "Mock User", "isAdmin": False, "profileImagePath": "", "shouldChangePassword": False})
+        # A signed-in session sends ?sessionKey=; "expired" acts like a session the server ended.
+        if self.arg("sessionKey") == "expired":
+            return self.h.send_json(401, {"message": "Invalid user token", "statusCode": 401})
+        if not (self.arg("apiKey") or self.arg("sessionKey") or self.h.headers.get("x-api-key")):
             return self.h.send_json(401, {"message": "Authentication required", "statusCode": 401})
+        if path == "/api/auth/logout" and method == "POST":
+            return self.send({"successful": True, "redirectUri": "/auth/login"})
 
         if path == "/api/partners" and method == "GET":
             return self.send([dict(p, avatarColor="primary", profileImagePath="", profileChangedAt=None) for p in PARTNERS])
@@ -527,7 +539,8 @@ class Mock:
         return {"id": "album-%d" % i, "albumName": self.ALBUMS[i], "assetCount": 12 + i * 7 + len(ALBUM_ASSETS.get("album-%d" % i, ())),
                 "albumThumbnailAssetId": None if i == 3 else "%s-0-%d" % (self.MONTHS[i % 6], i),
                 "updatedAt": "2026-%02d-01T00:00:00.000Z" % (10 - i % 9),
-                "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9)}
+                "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9),
+                "shared": i in (1, 4)}
 
     def svg(self, w, h, hue, text, font_size):
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d">'

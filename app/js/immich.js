@@ -12,9 +12,13 @@ var Immich = (function () {
 
   var PAGE_SIZE = 100;
 
-  function Client(server, apiKey) {
+  /* auth: an API key, or the access token from signing in with email and password
+     ({token: '...'}). A token is sent as ?sessionKey=, which Immich accepts the same
+     way as ?apiKey= (auth.service.ts), so <img> tags keep working. */
+  function Client(server, apiKey, token) {
     this.server = String(server || '').replace(/\/+$/, '');
     this.apiKey = apiKey || '';
+    this.token = token || '';
   }
 
   Client.prototype.url = function (path, params) {
@@ -26,6 +30,7 @@ var Immich = (function () {
       }
     }
     if (this.apiKey) { q.push('apiKey=' + encodeURIComponent(this.apiKey)); }
+    else if (this.token) { q.push('sessionKey=' + encodeURIComponent(this.token)); }
     return this.server + '/api' + path + (q.length ? '?' + q.join('&') : '');
   };
 
@@ -329,5 +334,21 @@ var Immich = (function () {
     return (body && body.message ? body.message + ' ' : 'Server error ') + '(' + xhr.status + ')';
   }
 
-  return { Client: Client };
+  /* Signs in with email and password: cb(err, {accessToken, name, userEmail, ...}). */
+  function login(server, email, password, cb) {
+    var c = new Client(server);
+    c.post('/auth/login', { email: email, password: password }, function (err, res) {
+      if (err && err.status === 401) { err.message = 'Wrong email or password'; }
+      if (!err && (!res || !res.accessToken)) { err = fail(0, 'The server did not sign you in'); }
+      cb(err, res);
+    });
+  }
+
+  /* Ends a signed-in session on the server (API keys stay valid until deleted). */
+  Client.prototype.logout = function (cb) {
+    if (!this.token) { return cb && cb(null); }
+    this.post('/auth/logout', {}, function (err) { if (cb) { cb(err); } });
+  };
+
+  return { Client: Client, login: login };
 })();
