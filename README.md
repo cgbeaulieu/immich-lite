@@ -26,7 +26,7 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
-| **Settings** | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, include partner photos in Photos, change server, sign out |
+| **Settings** | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
 | **▶ Slideshow** | Plays the current view, in order or shuffled (shuffle draws from your whole library or the album/person/place/tag/archive) |
 | **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
 | **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
@@ -44,11 +44,15 @@ The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web ap
 
 The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
 
+## Partner photos
+
+Photos shared with you through Immich's partner sharing (Account Settings → Partner Sharing) show in Photos, Search and the map, the same as on Immich's web app. Immich only includes a partner whose **"Show in timeline"** switch is on. Settings lists your partners and has that switch for each one, so you can turn it on from the TV.
+
 ## API key permissions
 
 Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
 `user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read` (stacks),
-`folder.read` (Folders), `tag.read` (Tags),
+`folder.read` (Folders), `tag.read` (Tags), `partner.read` and `partner.update` (partner photos),
 `asset.statistics` and `server.storage` (library statistics in Settings; without them those lines are left out).
 
 ## Target / constraints

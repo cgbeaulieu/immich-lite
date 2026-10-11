@@ -147,7 +147,18 @@ var Immich = (function () {
   };
 
   /* [{id, lat, lon, city}] for every photo with a location. */
-  Client.prototype.mapMarkers = function (cb) { this.get('/map/markers', null, cb); };
+  Client.prototype.mapMarkers = function (withPartners, cb) {
+    this.get('/map/markers', withPartners ? { withPartners: true } : null, cb);
+  };
+
+  /* People who share their library with you: [{id, name, email, inTimeline}]. Immich
+     only mixes a partner's photos into your timeline (and search, map...) when
+     inTimeline is on, the "Show in timeline" switch in Immich's partner settings. */
+  Client.prototype.partners = function (cb) { this.get('/partners', { direction: 'shared-with' }, cb); };
+
+  Client.prototype.setPartnerInTimeline = function (id, on, cb) {
+    this.put('/partners/' + encodeURIComponent(id), { inTimeline: on }, cb);
+  };
 
   // ---------- library: folders and tags ----------
 

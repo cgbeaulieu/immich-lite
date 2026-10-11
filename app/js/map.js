@@ -231,5 +231,8 @@ var MapView = (function () {
     return false;
   }
 
-  return { show: show, key: key };
+  /* Forget the loaded photo locations (partner settings changed); the next show reloads. */
+  function reset() { markers = null; }
+
+  return { show: show, key: key, reset: reset };
 })();

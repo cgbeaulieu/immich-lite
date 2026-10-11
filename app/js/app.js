@@ -498,7 +498,7 @@
     if (v.kind === 'map') {
       showPanel('map');
       MapView.show({
-        load: function (cb) { client.mapMarkers(cb); },
+        load: function (cb) { client.mapMarkers(Settings.get('withPartners') === 'on', cb); },
         thumbUrl: function (id) { return client.thumbUrl(id, 'thumbnail'); },
         onOpen: function (ids, label) {
           push(staticView('map', label, map(ids, function (id) { return { id: id, isImage: true, isFavorite: false, date: '' }; })));
@@ -621,6 +621,33 @@
         c.me(function (err, user) { got.user = err ? null : user; done(); });
         c.serverStorage(function (err, s) { got.disk = err ? null : s; done(); });
       },
+      partners: function (cb) {
+        var c = client, v = view();
+        function current() { return view() === v && client === c; }
+        c.partners(function (err, list) {
+          if (!current()) { return; }
+          if (err) {
+            return cb(err.status === 403 ? 'Partners: the API key needs the partner.read permission to list them'
+              : 'Could not load partners: ' + err.message, []);
+          }
+          if (!list || !list.length) {
+            return cb('No partners share their photos with you. In Immich, they add you under Account Settings > Partner Sharing.', []);
+          }
+          cb('Partners who share their photos with you. A hidden partner\'s photos stay out of\n' +
+            'Photos, Search and the map (Immich\'s "Show in timeline" setting, saved to your account):',
+            map(list, partnerRow));
+        });
+        function partnerRow(p) {
+          var row = { label: 'Show ' + (p.name || p.email) + '\'s photos', on: !!p.inTimeline };
+          row.toggle = function (done) {
+            c.setPartnerInTimeline(p.id, !row.on, function (err) {
+              if (!err) { row.on = !row.on; MapView.reset(); }
+              done(err);
+            });
+          };
+          return row;
+        }
+      },
       changeServer: showSetup,
       signOut: function () {
         Store.set('apiKey', '');
@@ -629,7 +656,10 @@
         grid.reset(renderAsset);
         showSetup();
       },
-      onChange: function (key) { if (key === 'tileSize') { applyTileSize(); } },
+      onChange: function (key) {
+        if (key === 'tileSize') { applyTileSize(); }
+        if (key === 'withPartners') { MapView.reset(); }
+      },
       onPointer: pointer
     });
   }

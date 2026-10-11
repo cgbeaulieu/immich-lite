@@ -13,12 +13,12 @@ var Settings = (function () {
       text: function (v) { return v.charAt(0).toUpperCase() + v.substr(1); } },
     { key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
       text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } },
-    // Read when Photos opens, so a change shows the next time Photos is opened.
-    { key: 'withPartners', label: 'Include partner photos in Photos', values: ['off', 'on'], def: 'off',
+    // Read when Photos or the map opens, so a change shows the next time they open.
+    { key: 'withPartners', label: 'Partner photos in Photos and Map', values: ['on', 'off'], def: 'on',
       text: function (v) { return v === 'on' ? 'On' : 'Off'; } }
   ];
 
-  var box, info, rows = [], focus = 0, active = false, handlers = null;
+  var box, info, partnerSlot, rows = [], focus = 0, active = false, handlers = null;
 
   function option(key) {
     for (var i = 0; i < OPTIONS.length; i++) { if (OPTIONS[i].key === key) { return OPTIONS[i]; } }
@@ -30,7 +30,8 @@ var Settings = (function () {
     return o.values.indexOf(v) === -1 ? o.def : v;
   }
 
-  /* h: {account(cb(lines)), changeServer(), signOut(), onChange(key), onPointer()} */
+  /* h: {account(cb(lines)), stats(cb(lines)), partners(cb(note, list)), changeServer(),
+         signOut(), onChange(key), onPointer()} */
   function open(h) {
     var i, row;
     handlers = h;
@@ -49,6 +50,9 @@ var Settings = (function () {
     for (i = 0; i < OPTIONS.length; i++) {
       addRow(OPTIONS[i].label, OPTIONS[i]);
     }
+    partnerSlot = document.createElement('div');
+    box.appendChild(partnerSlot);
+    if (h.partners) { addPartners(h.partners); }
     addRow('Change server or API key', null, h.changeServer);
     addRow('Sign out', null, h.signOut);
 
@@ -73,27 +77,63 @@ var Settings = (function () {
     });
   }
 
-  function addRow(label, opt, action) {
-    var index = rows.length;
+  /* Partners load after the page opens, so their rows are slotted in between the
+     options and the account actions; rows look their position up when used. */
+  function addPartners(load) {
+    load(function (note, list) {
+      var at = rows.length - 2, i, el;    // before "Change server" and "Sign out"
+      partnerSlot.innerHTML = '';
+      el = document.createElement('div');
+      el.className = 'account partners';
+      el.textContent = note;
+      partnerSlot.appendChild(el);
+      for (i = 0; i < list.length; i++) {
+        addRow(list[i].label, null, null, { partner: list[i], at: at + i, parent: partnerSlot });
+      }
+      draw();
+    });
+  }
+
+  /* extra (optional): {partner: {label, on, toggle(cb(err, on))}, at, parent} */
+  function addRow(label, opt, action, extra) {
     var row = document.createElement('div');
     var name = document.createElement('span');
-    row.className = 'row' + (opt ? '' : ' action');
+    var entry = { el: row, opt: opt, action: action, partner: extra && extra.partner };
+    row.className = 'row' + (opt || entry.partner ? '' : ' action');
     name.className = 'name';
     name.textContent = label;
     row.appendChild(name);
-    if (opt) {
+    if (opt || entry.partner) {
       var val = document.createElement('span');
       val.className = 'value';
       row.appendChild(val);
     }
     row.onmouseover = function () {
       if (handlers.onPointer) { handlers.onPointer(); }
-      focus = index;
+      focus = rows.indexOf(entry);
       draw();
     };
-    row.onclick = function () { focus = index; activate(); };
-    box.appendChild(row);
-    rows.push({ el: row, opt: opt, action: action });
+    row.onclick = function () { focus = rows.indexOf(entry); activate(); };
+    (extra && extra.parent ? extra.parent : box).appendChild(row);
+    if (extra) {
+      if (extra.at <= focus) { focus++; } // keep the focused row focused
+      rows.splice(extra.at, 0, entry);
+    } else {
+      rows.push(entry);
+    }
+  }
+
+  function togglePartner(r) {
+    var p = r.partner;
+    if (p.busy) { return; }
+    p.busy = true;
+    p.error = '';
+    draw();
+    p.toggle(function (err) {
+      p.busy = false;
+      if (err) { p.error = err.status === 403 ? 'needs partner.update' : 'could not change'; }
+      draw();
+    });
   }
 
   function draw() {
@@ -102,6 +142,10 @@ var Settings = (function () {
       r = rows[i];
       U.toggleClass(r.el, 'focused', active && i === focus);
       if (r.opt) { r.el.lastChild.textContent = '‹  ' + r.opt.text(get(r.opt.key)) + '  ›'; }
+      if (r.partner) {
+        r.el.lastChild.textContent = r.partner.busy ? 'Saving...' :
+          (r.partner.error ? 'Error: ' + r.partner.error : '‹  ' + (r.partner.on ? 'Shown' : 'Hidden') + '  ›');
+      }
     }
     // Keep the focused row on screen (the list is taller than a 720p screen).
     r = rows[focus];
@@ -115,6 +159,7 @@ var Settings = (function () {
 
   function step(dir) {
     var r = rows[focus], vals, i;
+    if (r.partner) { return togglePartner(r); }
     if (!r.opt) { return; }
     vals = r.opt.values;
     i = (vals.indexOf(get(r.opt.key)) + dir + vals.length) % vals.length;
@@ -125,7 +170,7 @@ var Settings = (function () {
 
   function activate() {
     var r = rows[focus];
-    if (r.opt) { step(1); } else { r.action(); }
+    if (r.opt || r.partner) { step(1); } else { r.action(); }
   }
 
   function setActive(on) {

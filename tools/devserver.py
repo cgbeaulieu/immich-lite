@@ -118,6 +118,9 @@ RATINGS = {}    # asset id -> 1..5, -1 or None, set through PUT /api/assets
 # album id -> asset ids added through PUT /api/albums/{id}/assets. Each album already
 # holds its cover photo, so adding the first timeline photo to "Summer 2026" says "Already in".
 ALBUM_ASSETS = {}
+# Partners who share with the mock user; inTimeline flips through PUT /api/partners/{id}.
+PARTNERS = [{"id": "partner-user-1", "name": "Jane", "email": "jane@example.test", "inTimeline": True},
+            {"id": "partner-user-2", "name": "Emma", "email": "emma@example.test", "inTimeline": False}]
 
 
 class Mock:
@@ -158,6 +161,15 @@ class Mock:
         if not (self.arg("apiKey") or self.h.headers.get("x-api-key")):
             return self.h.send_json(401, {"message": "Authentication required", "statusCode": 401})
 
+        if path == "/api/partners" and method == "GET":
+            return self.send([dict(p, avatarColor="primary", profileImagePath="", profileChangedAt=None) for p in PARTNERS])
+        if path.startswith("/api/partners/") and method == "PUT":
+            partner_id, b = path.split("/")[3], self.body()
+            for p in PARTNERS:
+                if p["id"] == partner_id:
+                    p["inTimeline"] = bool(b.get("inTimeline"))
+                    return self.send(dict(p, avatarColor="primary", profileImagePath="", profileChangedAt=None))
+            return self.h.send_json(400, {"message": "Partner not found", "statusCode": 400})
         if path == "/api/users/me":
             return self.send({"id": "mock-user", "name": "Mock User", "email": "mock@example.test",
                               "quotaSizeInBytes": None, "quotaUsageInBytes": 187654321098})
@@ -252,7 +264,10 @@ class Mock:
             ])
         if path == "/api/map/markers":
             out = []
-            for a in self.all_assets():
+            mine = self.all_assets()
+            if self.arg("withPartners") == "true":
+                mine += [a for m in self.MONTHS for a in self.partner_assets(m)]
+            for a in mine:
                 c = self.city_of(a["id"])
                 if c:
                     jitter = int(hashlib.md5(a["id"].encode()).hexdigest(), 16)
@@ -378,7 +393,8 @@ class Mock:
         return out
 
     def partner_assets(self, month):
-        if month not in self.MONTHS[:3]:
+        # Like Immich: only partners you show in your timeline contribute photos.
+        if month not in self.MONTHS[:3] or not any(p["inTimeline"] for p in PARTNERS):
             return []
         return [{"id": "partner-%s-%d" % (month, i), "img": True, "fav": False,
                  "date": "%s-%02dT18:00:00.000Z" % (month, 25 - i * 5)} for i in range(5)]
