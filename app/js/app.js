@@ -672,6 +672,9 @@
     });
   }
 
+  /* A face picked in the viewer's details panel. The viewer has already closed. */
+  function openPerson(p) { push(personView(p)); }
+
   function openViewer(index, autoplay) {
     var v = view();
     screen = 'viewer';
@@ -684,6 +687,8 @@
       more: loadMore,
       toggleFavorite: toggleFavorite,
       stack: function (it, cb) { client.stack(it.stackId, cb); },
+      client: client,
+      openPerson: openPerson,
       onClose: function (i) {
         screen = 'browse';
         if (view() === v) { grid.setFocus(i); }
@@ -760,6 +765,8 @@
         urlFor: function (it) { return c.thumbUrl(it.id, 'preview'); },
         more: more,
         toggleFavorite: toggleFavorite,
+        client: c,
+        openPerson: openPerson,
         onClose: function () { screen = 'browse'; }
       });
     });

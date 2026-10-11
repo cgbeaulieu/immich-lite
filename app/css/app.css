@@ -176,3 +176,44 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
 #viewer-vtime { float: right; margin-left: 24px; font-size: 22px; color: #dcdce0; }
 #viewer-vline { overflow: hidden; height: 6px; margin-top: 12px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
 #viewer-vfill { width: 0; height: 100%; background: #4e8cff; }
+
+/* ---------- viewer details panel (Down in the viewer) ---------- */
+#details {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 560px;
+  background: rgba(14, 14, 18, 0.9); box-shadow: -8px 0 32px rgba(0, 0, 0, 0.5); cursor: default;
+}
+#details .d-body {
+  position: absolute; top: 0; left: 0; right: 0; bottom: 132px; padding: 40px 36px 24px;
+  overflow-x: hidden; overflow-y: auto; word-wrap: break-word;
+}
+#details .d-body::-webkit-scrollbar { display: none; }
+#details .d-hint {
+  position: absolute; left: 36px; right: 36px; bottom: 28px;
+  font-size: 22px; line-height: 1.45; color: #8a8a92; white-space: pre-wrap;
+}
+#details .d-date { font-size: 34px; color: #fff; }
+#details .d-time { margin-top: 4px; font-size: 24px; color: #9a9aa2; }
+#details .d-place { margin-top: 14px; font-size: 26px; color: #dcdce0; }
+#details .d-desc { margin-top: 14px; font-size: 24px; line-height: 1.4; color: #dcdce0; }
+#details .d-note { margin-top: 24px; font-size: 24px; color: #9a9aa2; }
+#details .d-sub { margin: 28px 0 10px; font-size: 22px; color: #9a9aa2; }
+#details .d-faces { overflow: hidden; margin: 0 -8px; }
+#details .d-face { float: left; width: 120px; margin: 0 0 8px; text-align: center; cursor: pointer; }
+#details .d-face img {
+  display: block; width: 100px; height: 100px; margin: 6px auto 8px; border-radius: 50%;
+  object-fit: cover; background: #17171c;
+}
+#details .d-face span { display: block; padding: 0 4px; font-size: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#details .d-face.focused img { box-shadow: 0 0 0 4px #fff, 0 6px 18px rgba(0, 0, 0, 0.6); }
+#details .d-face.focused span { color: #fff; }
+#details .d-row {
+  overflow: hidden; margin-top: 12px; padding: 12px 20px; font-size: 24px; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.06); border: 3px solid transparent; border-radius: 10px; cursor: pointer;
+}
+#details .d-row.focused { border-color: #4e8cff; background: #1f1f26; }
+#details .d-row .name { float: left; max-width: 380px; overflow: hidden; text-overflow: ellipsis; }
+#details .d-row .value { float: right; color: #9cc0ff; }
+#details .d-row .value.d-stars { color: #ffd27b; letter-spacing: 4px; }
+#details .d-fact { margin-top: 8px; font-size: 22px; line-height: 1.4; }
+#details .d-fact .k { float: left; width: 112px; color: #9a9aa2; }
+#details .d-fact .v { display: block; margin-left: 112px; color: #e8e8ea; }

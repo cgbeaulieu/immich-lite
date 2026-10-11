@@ -22,10 +22,17 @@ var Viewer = (function () {
     root.onclick = function () { next(); }; // Magic Remote click
     initStack();
     initVideo();
+    Details.init(root, toastEl, {
+      client: function () { return opts && opts.client; },
+      redraw: function () { if (opts) { drawCaption(); } },
+      toast: toast,
+      setBar: function (on) { U.toggleClass(bar, 'hidden', !on); },
+      openPerson: function (p) { var go = opts && opts.openPerson; close(); if (go) { go(p); } }
+    });
   }
 
   /* o: {items, index, urlFor(item), more(cb(gotMore)), onClose(index), autoplay, shuffle,
-         toggleFavorite(item, cb(err))}.
+         toggleFavorite(item, cb(err)), client (for the details panel), openPerson(person)}.
      o.items may be the grid's live array, so months loaded later show up here too. */
   function open(o) {
     opts = o;
@@ -41,6 +48,7 @@ var Viewer = (function () {
 
   function close() {
     var i = index, done;
+    Details.close(true);
     setPlaying(false, true);
     U.hide(toastEl);
     img.src = Grid.BLANK;
@@ -73,6 +81,7 @@ var Viewer = (function () {
     if (stopVideo()) { setPlaying(playing, true); } // puts the photo hint back
     if (!it.isImage) { showVideo(it); }
     drawCaption();
+    Details.photo(it, playing);
     U.addClass(img, 'loading');
     img.src = opts.urlFor(it);
     if (items[i + 1]) {
@@ -83,7 +92,8 @@ var Viewer = (function () {
 
   function drawCaption() {
     var it = opts.items[index];
-    caption.textContent = (it.isFavorite ? '♥  ' : '') + U.fmtDate(it.date) + '     ' +
+    caption.textContent = (it.isFavorite ? '♥  ' : '') + (it.rating > 0 ? Details.stars(it.rating) + '  ' : '') +
+      U.fmtDate(it.date) + '     ' +
       (opts.shuffle ? 'Shuffle' : (index + 1) + ' / ' + opts.items.length);
   }
 
@@ -110,7 +120,7 @@ var Viewer = (function () {
   function setPlaying(on, quiet) {
     var was = playing;
     playing = on;
-    hint.textContent = (on ? 'OK: pause' : 'OK: slideshow') + '     ▲ favorite     ▼ hide info     Back: exit';
+    hint.textContent = (on ? 'OK: pause' : 'OK: slideshow') + '     ▲ favorite     ▼ details     Back: exit';
     if (on) { U.hide(bar); }
     schedule();
     if (!quiet && on !== was) {
@@ -178,14 +188,28 @@ var Viewer = (function () {
     }
     stackPos = (stackPos + dir + stackList.length) % stackList.length;
     m = stackList[stackPos];
-    status.textContent = m.isImage ? '' : 'Video: playback is not supported yet, showing a still';
+    status.textContent = m.isImage ? '' : 'A video in this stack, shown as a still';
     drawStack();
     U.addClass(img, 'loading');
     img.src = opts.urlFor(m);
     return true;
   }
 
+  /* Down: the details panel. It hides the info bar while it's open, and pauses a
+     slideshow or a playing video. */
+  function openDetails() {
+    var it = opts && opts.items[index];
+    if (!it) { return; }
+    setPlaying(false);
+    if (videoItem && videoPlaying()) { video.pause(); }
+    Details.open(it, !bar.classList.contains('hidden'));
+  }
+
   function key(k) {
+    var n = Details.digit(k);
+    if (n !== -1) { if (opts && opts.items[index]) { Details.rate(opts.items[index], n); } return true; }
+    // The open panel takes every key but Stop, so nothing changes under it.
+    if (Details.isOpen() && k !== KEY.STOP) { Details.key(k); return true; }
     if (videoItem && videoKey(k)) { return true; }
     switch (k) {
       case KEY.LEFT: case KEY.RW: prev(); return true;
@@ -194,7 +218,7 @@ var Viewer = (function () {
       case KEY.PLAY: setPlaying(true); return true;
       case KEY.PAUSE: setPlaying(false); return true;
       case KEY.UP: toggleFavorite(); return true;
-      case KEY.DOWN: U.toggleClass(bar, 'hidden', !bar.classList.contains('hidden')); return true;
+      case KEY.DOWN: openDetails(); return true;
       case KEY.BACK: case KEY.ESC: case KEY.BACKSPACE: case KEY.STOP: close(); return true;
       case KEY.CH_UP: return stepStack(1);
       case KEY.CH_DOWN: return stepStack(-1);
