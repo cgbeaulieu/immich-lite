@@ -97,26 +97,28 @@
       empty: empty || 'No photos here yet' };
   }
 
+  /* withStacked: a stack (burst shots, edits) shows as its primary photo only, with a
+     count badge; the viewer steps through the rest with CH+/CH-. */
   function photosView() {
-    return assetView('photos', '', function () { return new TimelineSource({ visibility: 'timeline', order: 'desc' }); },
+    return assetView('photos', '', function () { return new TimelineSource({ visibility: 'timeline', order: 'desc', withStacked: true }); },
       { visibility: 'timeline' }, true);
   }
 
   function favoritesView() {
     return assetView('favorites', 'Favorites',
-      function () { return new TimelineSource({ isFavorite: true, visibility: 'timeline', order: 'desc' }); },
+      function () { return new TimelineSource({ isFavorite: true, visibility: 'timeline', order: 'desc', withStacked: true }); },
       { isFavorite: true }, true, 'No favorites yet. In the photo viewer, press ▲ to add one.');
   }
 
   function albumView(a) {
     return assetView('albums', a.albumName || 'Untitled album',
-      function () { return new TimelineSource({ albumId: a.id, order: 'desc' }); },
+      function () { return new TimelineSource({ albumId: a.id, order: 'desc', withStacked: true }); },
       { albumIds: [a.id] }, true, 'This album is empty');
   }
 
   function personView(p) {
     return assetView(view().tab, p.name || 'Unnamed person',
-      function () { return new TimelineSource({ personId: p.id, visibility: 'timeline', order: 'desc' }); },
+      function () { return new TimelineSource({ personId: p.id, visibility: 'timeline', order: 'desc', withStacked: true }); },
       { personIds: [p.id] }, true);
   }
 
@@ -233,7 +235,9 @@
   // ---------- rendering ----------
 
   function renderAsset(it) {
-    return { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : 'VIDEO' };
+    var r = { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : 'VIDEO' };
+    if (it.stackCount > 1) { r.badge = (r.badge ? r.badge + '  ' : '') + '⧉ ' + it.stackCount; }
+    return r;
   }
 
   function renderCard(it) {
@@ -446,6 +450,17 @@
           });
         });
       },
+      stats: function (cb) {
+        var c = client, v = view(), got = {}, pending = 3;
+        function current() { return view() === v && client === c; }
+        function done() {
+          if (--pending || !current()) { return; }
+          cb(statsLines(got));
+        }
+        c.assetStats(function (err, s) { got.statsErr = err; got.stats = s; done(); });
+        c.me(function (err, user) { got.user = err ? null : user; done(); });
+        c.serverStorage(function (err, s) { got.disk = err ? null : s; done(); });
+      },
       changeServer: showSetup,
       signOut: function () {
         Store.set('apiKey', '');
@@ -457,6 +472,35 @@
       onChange: function (key) { if (key === 'tileSize') { applyTileSize(); } },
       onPointer: pointer
     });
+  }
+
+  /* Library statistics for Settings. Only endpoints a normal (non-admin) user's key
+     can call: /assets/statistics (counts), /users/me (your usage, maybe a quota) and
+     /server/storage (the server's disk). A missing permission just drops its line. */
+  function statsLines(got) {
+    var lines = [], s = got.stats, u = got.user, d = got.disk, used;
+    if (s) {
+      lines.push('Library: ' + U.fmtCount(s.images) + (s.images === 1 ? ' photo, ' : ' photos, ') +
+        U.fmtCount(s.videos) + (s.videos === 1 ? ' video' : ' videos') +
+        (s.total > s.images + s.videos ? '   (' + U.fmtCount(s.total) + ' items in all)' : ''));
+    } else if (got.statsErr && got.statsErr.status === 403) {
+      lines.push('Library counts need the asset.statistics permission on the API key');
+    } else if (got.statsErr) {
+      lines.push('Could not load library counts: ' + got.statsErr.message);
+    }
+    if (u && typeof u.quotaUsageInBytes === 'number') {
+      used = 'Storage used: ' + U.fmtBytes(u.quotaUsageInBytes);
+      if (u.quotaSizeInBytes) {
+        used += ' of your ' + U.fmtBytes(u.quotaSizeInBytes) + ' quota (' +
+          Math.round(u.quotaUsageInBytes * 100 / u.quotaSizeInBytes) + '%)';
+      }
+      lines.push(used);
+    }
+    if (d && d.diskSizeRaw) {
+      lines.push('Server disk: ' + U.fmtBytes(d.diskUseRaw) + ' of ' + U.fmtBytes(d.diskSizeRaw) + ' used (' +
+        Math.round(d.diskUsagePercentage) + '%)');
+    }
+    return lines;
   }
 
   // ---------- viewer and slideshow ----------
@@ -478,6 +522,7 @@
       urlFor: function (it) { return client.thumbUrl(it.id, 'preview'); },
       more: loadMore,
       toggleFavorite: toggleFavorite,
+      stack: function (it, cb) { client.stack(it.stackId, cb); },
       onClose: function (i) {
         screen = 'browse';
         if (view() === v) { grid.setFocus(i); }

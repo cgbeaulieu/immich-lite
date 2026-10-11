@@ -67,8 +67,10 @@ More endpoints used for Explore, Search, Map and Favorites:
 | Map | `GET /api/map/markers` (every located photo: id, lat, lon, city) |
 | Favorites | timeline calls with `isFavorite=true`; star with `PUT /api/assets {ids, isFavorite}` |
 | Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `city`, `isFavorite`) |
+| Stacks | timeline calls with `withStacked=true` (Photos, Favorites, albums, people): only a stack's primary photo comes back, and the bucket gains a `stack` column, `[stackId, count]` (count as a string) or null. Members via `GET /api/stacks/{id}` (`{id, primaryAssetId, assets}`) |
+| Library statistics | `GET /api/assets/statistics` (`{images, videos, total}`, your own assets, timeline and archive), `quotaUsageInBytes` / `quotaSizeInBytes` from `GET /api/users/me`, `GET /api/server/storage` (server disk). None are admin-only; `/server/statistics` is, so it isn't used |
 
-**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`. A key with all permissions also works.
+**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `person.read`, `memory.read`, `map.read`, `stack.read`, `asset.statistics`, `server.storage`. A key with all permissions also works.
 
 ## CORS: the open question
 
@@ -94,4 +96,5 @@ How it plays out by way of running the app:
 2. **Install over root SSH** and launch on the TV. This needs a short window when nobody is watching. Then settle the CORS question above.
 3. Real-library performance: test against the full Immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
 4. Check on the TV: OpenStreetMap tiles load over HTTPS (old TVs can lack newer root certificates), and whether the webOS screensaver interrupts long slideshows.
-5. Later: video playback (`/assets/{id}/video/playback`, H.264), photo details panel, "jump to year".
+5. Stacks with `withStacked=true` hide non-primary members everywhere, so an album or person view that contains only a non-primary member of a stack won't show it (Immich does this server-side). Check on the real library whether albums should drop `withStacked`. Also check the ⧉ badge glyph renders in the TV's fonts.
+6. Later: video playback (`/assets/{id}/video/playback`, H.264), photo details panel, "jump to year".

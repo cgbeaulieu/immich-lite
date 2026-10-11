@@ -154,7 +154,24 @@ class Mock:
             return self.h.send_json(401, {"message": "Authentication required", "statusCode": 401})
 
         if path == "/api/users/me":
-            return self.send({"id": "mock-user", "name": "Mock User", "email": "mock@example.test"})
+            return self.send({"id": "mock-user", "name": "Mock User", "email": "mock@example.test",
+                              "quotaSizeInBytes": None, "quotaUsageInBytes": 187654321098})
+        if path == "/api/assets/statistics":
+            items = self.all_assets()
+            images = len([a for a in items if a["img"]])
+            return self.send({"images": images, "videos": len(items) - images, "total": len(items)})
+        if path == "/api/server/storage":
+            size, use = 3998614552576, 1514280419328
+            return self.send({"diskSize": "3.6 TiB", "diskUse": "1.4 TiB", "diskAvailable": "2.3 TiB",
+                              "diskSizeRaw": size, "diskUseRaw": use, "diskAvailableRaw": size - use,
+                              "diskUsagePercentage": round(use * 100.0 / size, 2)})
+        if path.startswith("/api/stacks/"):
+            primary = path.split("/")[3][len("stack-"):]
+            members = [a for a in self.assets(primary[:7]) if a.get("stack_of") == "stack-" + primary]
+            if not members:
+                return self.h.send_json(404, {"message": "Not found", "statusCode": 404})
+            return self.send({"id": "stack-" + primary, "primaryAssetId": primary,
+                              "assets": [dict(self.dto(a), isTrashed=False) for a in members]})
         if path == "/api/albums":
             return self.send([self.album(i) for i in range(len(self.ALBUMS))])
         if path == "/api/timeline/buckets":
@@ -165,7 +182,8 @@ class Mock:
                     out.append({"timeBucket": m + "-01T00:00:00.000Z", "count": n})
             return self.send(out)
         if path == "/api/timeline/bucket":
-            return self.send(self.columns(self.filtered((self.arg("timeBucket") or "")[:7])))
+            return self.send(self.columns(self.filtered((self.arg("timeBucket") or "")[:7]),
+                                          self.arg("withStacked") == "true"))
         if path == "/api/assets" and method == "PUT":
             b = self.body()
             for asset_id in b.get("ids", []):
@@ -243,6 +261,16 @@ class Mock:
             out.append({"id": asset_id, "img": i % 11 != 5,
                         "fav": FAVORITES.get(asset_id, i % 7 == 3),
                         "date": "%s-%02dT12:00:00.000Z" % (month, 28 - (i * 27 // max(n, 1)))})
+        # A few stacks of 3-5 (burst shots): the first photo is the primary. They sit
+        # at the same indexes in the full month and the 9-photo album/person view.
+        for i in range(2, n, 13):
+            size = 3 + int(hashlib.md5(("stack" + out[i]["id"]).encode()).hexdigest(), 16) % 3
+            if i + size > n:
+                break
+            stack_id = "stack-" + out[i]["id"]
+            out[i]["stack"] = [stack_id, str(size)]
+            for a in out[i:i + size]:
+                a["stack_of"] = stack_id
         return out
 
     def all_assets(self):
@@ -257,6 +285,8 @@ class Mock:
         items = self.assets(month, bool(self.arg("albumId") or self.arg("personId")))
         if self.arg("isFavorite") == "true":
             items = [a for a in items if a["fav"]]
+        if self.arg("withStacked") == "true":  # only a stack's primary photo shows
+            items = [a for a in items if not a.get("stack_of") or a.get("stack")]
         return items
 
     def city_of(self, asset_id):
@@ -268,15 +298,18 @@ class Mock:
         return c[0] if c else None
 
     @staticmethod
-    def columns(items):
+    def columns(items, stacked=False):
         n = len(items)
-        return {
+        cols = {
             "id": [a["id"] for a in items], "isImage": [a["img"] for a in items],
             "isFavorite": [a["fav"] for a in items], "fileCreatedAt": [a["date"] for a in items],
             "ratio": [1.5] * n, "createdAt": [None] * n, "duration": [None] * n, "isTrashed": [False] * n,
             "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n, "ownerId": ["mock-user"] * n,
             "projectionType": [None] * n, "thumbhash": [None] * n, "visibility": ["timeline"] * n,
         }
+        if stacked:  # Immich only sends this column with withStacked=true
+            cols["stack"] = [a.get("stack") for a in items]
+        return cols
 
     @staticmethod
     def dto(a):

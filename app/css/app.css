@@ -138,6 +138,7 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
 #settings { position: absolute; top: 96px; left: 0; right: 0; bottom: 0; padding: 24px 88px; overflow-y: auto; }
 #settings::-webkit-scrollbar { display: none; }
 #settings .account { white-space: pre; font-size: 24px; line-height: 1.6; color: #bbbbc2; margin-bottom: 28px; }
+#settings .account.stats { margin-top: -16px; }
 #settings .row {
   width: 980px; overflow: hidden; margin-bottom: 10px; padding: 14px 24px; box-sizing: border-box;
   font-size: 26px; background: #17171c; border: 3px solid transparent; border-radius: 10px; cursor: pointer;
@@ -162,6 +163,8 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
 }
 #viewer-caption { white-space: pre; }
 #viewer-play { float: right; color: #9a9aa2; font-size: 22px; }
+#viewer-bar .viewer-stack { white-space: pre; color: #9cc0ff; }
+#viewer-bar .viewer-stack-hint { float: right; margin-right: 40px; color: #9cc0ff; font-size: 22px; }
 #viewer-toast {
   position: absolute; top: 48px; left: 50%; width: 640px; margin-left: -320px; padding: 14px 0;
   text-align: center; font-size: 26px; color: #fff; background: rgba(0, 0, 0, 0.7); border-radius: 32px;

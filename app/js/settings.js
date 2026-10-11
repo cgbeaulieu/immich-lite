@@ -41,6 +41,7 @@ var Settings = (function () {
     info.textContent = 'Loading account...';
     box.appendChild(info);
     h.account(function (lines) { info.textContent = lines.join('\n'); });
+    if (h.stats) { addStats(h.stats); }
 
     for (i = 0; i < OPTIONS.length; i++) {
       addRow(OPTIONS[i].label, OPTIONS[i]);
@@ -54,6 +55,19 @@ var Settings = (function () {
     box.appendChild(row);
 
     draw();
+  }
+
+  /* Library statistics under the account lines. A hook of their own (stats(cb(lines)))
+     because they need extra permissions and load separately; no lines hides them. */
+  function addStats(load) {
+    var el = document.createElement('div');
+    el.className = 'account stats';
+    el.textContent = 'Loading library statistics...';
+    box.appendChild(el);
+    load(function (lines) {
+      el.textContent = lines.join('\n');
+      U.toggleClass(el, 'hidden', !lines.length);
+    });
   }
 
   function addRow(label, opt, action) {

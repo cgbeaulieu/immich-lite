@@ -72,6 +72,24 @@ var U = {
   }
 };
 
+/* "12345" -> "12,345". By hand: toLocaleString is unreliable on the old engine. */
+U.fmtCount = function (n) {
+  var s = String(Math.floor(Math.abs(n || 0))), out = '';
+  while (s.length > 3) {
+    out = ',' + s.substr(s.length - 3) + out;
+    s = s.substr(0, s.length - 3);
+  }
+  return (n < 0 ? '-' : '') + s + out;
+};
+
+/* Bytes -> "52.1 GB" (1024-based, like Immich shows it). */
+U.fmtBytes = function (n) {
+  var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'], i = 0;
+  n = n || 0;
+  while (n >= 1024 && i < units.length - 1) { n = n / 1024; i++; }
+  return (i === 0 || n >= 100 ? String(Math.round(n)) : n.toFixed(1)) + ' ' + units[i];
+};
+
 /* localStorage can throw (private mode, quota), so every access is guarded. */
 var Store = {
   get: function (k, def) {

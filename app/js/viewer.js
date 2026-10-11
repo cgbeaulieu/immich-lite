@@ -20,6 +20,7 @@ var Viewer = (function () {
       schedule();
     };
     root.onclick = function () { next(); }; // Magic Remote click
+    initStack();
   }
 
   /* o: {items, index, urlFor(item), more(cb(gotMore)), onClose(index), autoplay, shuffle,
@@ -64,6 +65,7 @@ var Viewer = (function () {
     it = items[i];
     if (playing && !it.isImage) { return show(i + dir, dir); }
     index = i;
+    resetStack(it);
     status.textContent = it.isImage ? '' : 'Video: playback is not supported yet, showing a still';
     drawCaption();
     U.addClass(img, 'loading');
@@ -119,6 +121,64 @@ var Viewer = (function () {
     toastTimer = setTimeout(function () { U.hide(toastEl); }, 2500);
   }
 
+  // ---------- stacks (burst shots, edits) ----------
+
+  /* A timeline photo can be the primary of a stack (item.stackId, item.stackCount).
+     CH+/CH- show the stack's other members in place, without moving off the timeline
+     item, so Left/Right still go to the next timeline photo. Members come from
+     opts.stack(item, cb(err, assets)), primary first, loaded on the first CH press. */
+  var stackLabel, stackHint, stackItem = null, stackList = null, stackPos = 0, stackBusy = false, stackToken = 0;
+
+  function initStack() {
+    stackLabel = document.createElement('span');
+    stackLabel.className = 'viewer-stack';
+    bar.insertBefore(stackLabel, caption.nextSibling);
+    stackHint = document.createElement('span');
+    stackHint.className = 'viewer-stack-hint hidden';
+    stackHint.textContent = 'CH+/CH-: stack';
+    bar.appendChild(stackHint);
+  }
+
+  function resetStack(it) {
+    stackItem = it && it.stackId && it.stackCount > 1 ? it : null;
+    stackList = null;
+    stackPos = 0;
+    stackBusy = false;
+    stackToken++;
+    drawStack();
+  }
+
+  function drawStack() {
+    var n = stackList ? stackList.length : (stackItem ? stackItem.stackCount : 0);
+    stackLabel.textContent = stackItem ? '     Stack ' + (stackPos + 1) + ' / ' + n : '';
+    U.toggleClass(stackHint, 'hidden', !stackItem);
+  }
+
+  function stepStack(dir) {
+    var token = stackToken, m;
+    if (!opts || !stackItem || !opts.stack) { return false; }
+    if (!stackList) {
+      if (stackBusy) { return true; }
+      stackBusy = true;
+      opts.stack(stackItem, function (err, list) {
+        if (!opts || token !== stackToken) { return; } // moved to another photo meanwhile
+        stackBusy = false;
+        if (err) { return toast(err.message); }
+        if (list.length < 2) { return toast('This stack has no other photos'); }
+        stackList = list;
+        stepStack(dir);
+      });
+      return true;
+    }
+    stackPos = (stackPos + dir + stackList.length) % stackList.length;
+    m = stackList[stackPos];
+    status.textContent = m.isImage ? '' : 'Video: playback is not supported yet, showing a still';
+    drawStack();
+    U.addClass(img, 'loading');
+    img.src = opts.urlFor(m);
+    return true;
+  }
+
   function key(k) {
     switch (k) {
       case KEY.LEFT: case KEY.RW: prev(); return true;
@@ -129,6 +189,8 @@ var Viewer = (function () {
       case KEY.UP: toggleFavorite(); return true;
       case KEY.DOWN: U.toggleClass(bar, 'hidden', !bar.classList.contains('hidden')); return true;
       case KEY.BACK: case KEY.ESC: case KEY.BACKSPACE: case KEY.STOP: close(); return true;
+      case KEY.CH_UP: return stepStack(1);
+      case KEY.CH_DOWN: return stepStack(-1);
     }
     return false;
   }

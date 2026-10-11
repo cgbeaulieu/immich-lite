@@ -66,6 +66,31 @@ var Immich = (function () {
   Client.prototype.me = function (cb) { this.get('/users/me', null, cb); };
   Client.prototype.version = function (cb) { this.get('/server/version', null, cb); };
 
+  /* Your own library: {images, videos, total} (needs asset.statistics). With no
+     visibility given, Immich counts the timeline and the archive, not the trash. */
+  Client.prototype.assetStats = function (cb) { this.get('/assets/statistics', null, cb); };
+
+  /* The server's disk: {diskSizeRaw, diskUseRaw, diskUsagePercentage, ...}
+     (needs server.storage; not admin-only). */
+  Client.prototype.serverStorage = function (cb) { this.get('/server/storage', null, cb); };
+
+  // ---------- stacks ----------
+
+  /* A stack's members (burst shots, edits) as assets, the primary (the one the
+     timeline shows) first. */
+  Client.prototype.stack = function (id, cb) {
+    this.get('/stacks/' + encodeURIComponent(id), null, function (err, s) {
+      var list, i, primary = [], rest = [];
+      if (err) { return cb(err); }
+      list = (s && s.assets) || [];
+      for (i = 0; i < list.length; i++) {
+        if (list[i].isTrashed) { continue; }
+        (list[i].id === s.primaryAssetId ? primary : rest).push(list[i]);
+      }
+      cb(null, fromDtos(primary.concat(rest)));
+    });
+  };
+
   // ---------- timeline ----------
 
   /* [{timeBucket: '2024-05-01T00:00:00.000Z', count: 42}, ...] */
@@ -187,7 +212,19 @@ var Immich = (function () {
         date: U.localDay(cols.fileCreatedAt ? cols.fileCreatedAt[i] : null, cols.localOffsetHours ? cols.localOffsetHours[i] : 0)
       });
     }
+    addStacks(cols, out);
     return out;
+  }
+
+  /* With withStacked=true the bucket has a stack column: [stackId, count] (count as
+     a string) for a stack's primary photo, null otherwise. The other members are
+     left out of the timeline. */
+  function addStacks(cols, out) {
+    var st = (cols && cols.stack) || [], i;
+    for (i = 0; i < out.length; i++) {
+      out[i].stackId = st[i] ? st[i][0] : null;
+      out[i].stackCount = st[i] ? parseInt(st[i][1], 10) || 0 : 0;
+    }
   }
 
   /* Full asset objects (search, random, memories). localDateTime is already the
