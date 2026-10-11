@@ -90,6 +90,13 @@ U.fmtBytes = function (n) {
   return (i === 0 || n >= 100 ? String(Math.round(n)) : n.toFixed(1)) + ' ' + units[i];
 };
 
+/* Seconds as a clock: 75.4 -> "1:15", 3725 -> "1:02:05". */
+U.fmtDuration = function (sec) {
+  var s = Math.floor(sec || 0), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60);
+  s = s % 60;
+  return (h ? h + ':' + U.pad2(m) : m) + ':' + U.pad2(s);
+};
+
 /* localStorage can throw (private mode, quota), so every access is guarded. */
 var Store = {
   get: function (k, def) {

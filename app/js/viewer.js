@@ -21,6 +21,7 @@ var Viewer = (function () {
     };
     root.onclick = function () { next(); }; // Magic Remote click
     initStack();
+    initVideo();
   }
 
   /* o: {items, index, urlFor(item), more(cb(gotMore)), onClose(index), autoplay, shuffle,
@@ -35,6 +36,7 @@ var Viewer = (function () {
     show(o.index, 1);
     playing = false;
     setPlaying(!!o.autoplay);
+    if (videoItem && !o.autoplay) { playVideo(); } // a video picked in the grid starts playing
   }
 
   function close() {
@@ -42,6 +44,7 @@ var Viewer = (function () {
     setPlaying(false, true);
     U.hide(toastEl);
     img.src = Grid.BLANK;
+    stopVideo();
     U.hide(root);
     if (opts) {
       done = opts.onClose;
@@ -66,7 +69,9 @@ var Viewer = (function () {
     if (playing && !it.isImage) { return show(i + dir, dir); }
     index = i;
     resetStack(it);
-    status.textContent = it.isImage ? '' : 'Video: playback is not supported yet, showing a still';
+    status.textContent = '';
+    if (stopVideo()) { setPlaying(playing, true); } // puts the photo hint back
+    if (!it.isImage) { showVideo(it); }
     drawCaption();
     U.addClass(img, 'loading');
     img.src = opts.urlFor(it);
@@ -112,6 +117,7 @@ var Viewer = (function () {
       toast(on ? 'Slideshow on, ' + Settings.get('slideSeconds') + ' seconds' + (opts && opts.shuffle ? ', shuffled' : '')
                : 'Slideshow paused');
     }
+    if (videoItem) { drawVideoHint(); }
   }
 
   function toast(text) {
@@ -180,6 +186,7 @@ var Viewer = (function () {
   }
 
   function key(k) {
+    if (videoItem && videoKey(k)) { return true; }
     switch (k) {
       case KEY.LEFT: case KEY.RW: prev(); return true;
       case KEY.RIGHT: case KEY.FF: next(); return true;
@@ -191,6 +198,132 @@ var Viewer = (function () {
       case KEY.BACK: case KEY.ESC: case KEY.BACKSPACE: case KEY.STOP: close(); return true;
       case KEY.CH_UP: return stepStack(1);
       case KEY.CH_DOWN: return stepStack(-1);
+    }
+    return false;
+  }
+
+  // ---------- video ----------
+
+  /* A video plays in a <video> laid over the still. The still (the preview image)
+     stays underneath as the poster until playback starts, and is what's left if the
+     TV can't play the file. Nothing is fetched until the video is played, so stepping
+     past videos stays cheap. opts.videoUrlFor(item) gives the video's address.
+     The elements are made here, not in index.html, to keep the video code together. */
+  var video, vinfo, vtime, vfill, videoItem = null;
+
+  function initVideo() {
+    var line = document.createElement('div');
+    video = document.createElement('video');
+    video.id = 'viewer-video';
+    video.className = 'hidden';
+    video.preload = 'none';
+    root.insertBefore(video, img.nextSibling); // above the still, below the bar and toasts
+
+    vinfo = document.createElement('div');
+    vinfo.id = 'viewer-vinfo';
+    vinfo.className = 'hidden';
+    vtime = document.createElement('span');
+    vtime.id = 'viewer-vtime';
+    vfill = document.createElement('div');
+    vfill.id = 'viewer-vfill';
+    line.id = 'viewer-vline';
+    line.appendChild(vfill);
+    vinfo.appendChild(vtime);
+    vinfo.appendChild(line);
+    bar.insertBefore(vinfo, bar.firstChild);
+
+    video.addEventListener('playing', function () {
+      if (videoItem) { U.show(video); status.textContent = ''; }
+    }, false);
+    video.addEventListener('waiting', function () {
+      if (videoItem) { status.textContent = 'Loading video...'; }
+    }, false);
+    video.addEventListener('play', drawVideoHint, false);
+    video.addEventListener('pause', drawVideoHint, false);
+    video.addEventListener('ended', drawVideoHint, false);
+    video.addEventListener('timeupdate', drawVideoTime, false);
+    video.addEventListener('durationchange', drawVideoTime, false);
+    video.addEventListener('error', videoFailed, false);
+  }
+
+  function showVideo(it) {
+    videoItem = it;
+    U.show(vinfo);
+    drawVideoTime();
+    drawVideoHint();
+  }
+
+  function playVideo() {
+    var p;
+    if (!videoItem) { return; }
+    if (!opts.videoUrlFor) { return cantPlay(); }
+    if (!video.getAttribute('src')) {
+      video.src = opts.videoUrlFor(videoItem);
+      status.textContent = 'Loading video...';
+    }
+    p = video.play();
+    // Newer engines return a promise that rejects when loading fails; the error event handles that.
+    if (p && p.then) { p.then(null, function () {}); }
+  }
+
+  function videoPlaying() { return !!video.getAttribute('src') && !video.paused && !video.ended; }
+
+  /* Removing the source and calling load() frees the decoder, and old TVs only have
+     one, so a video is unloaded as soon as it's left. Returns whether one was current. */
+  function stopVideo() {
+    var was = !!videoItem;
+    videoItem = null;
+    unloadVideo();
+    U.hide(video);
+    U.hide(vinfo);
+    return was;
+  }
+
+  function unloadVideo() {
+    if (!video.getAttribute('src')) { return; }
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+  }
+
+  /* Only an error from the current video counts: unloading one can report late. */
+  function videoFailed() {
+    if (!videoItem || !video.getAttribute('src') || !video.error) { return; }
+    cantPlay();
+  }
+
+  /* Back to the still. OK tries again. */
+  function cantPlay() {
+    unloadVideo();
+    U.hide(video);
+    status.textContent = '';
+    drawVideoTime();
+    drawVideoHint();
+    toast('This video can\'t play on this TV');
+  }
+
+  /* Only the OK part of the hint changes; the rest stays as setPlaying wrote it. */
+  function drawVideoHint() {
+    if (!videoItem) { return; }
+    hint.textContent = hint.textContent.replace(/^OK: \S+( video)?/, videoPlaying() ? 'OK: pause video' : 'OK: play video');
+  }
+
+  /* Elapsed / total, and the progress line. Before the video loads, the length comes
+     from the timeline. */
+  function drawVideoTime() {
+    var t = video.getAttribute('src') ? video.currentTime : 0, d = video.duration;
+    if (!videoItem) { return; }
+    if (!isFinite(d) || !d) { d = videoItem.duration / 1000 || 0; }
+    vtime.textContent = U.fmtDuration(t) + ' / ' + (d ? U.fmtDuration(d) : '-:--');
+    vfill.style.width = (d ? Math.min(100, t / d * 100) : 0) + '%';
+  }
+
+  /* While a video is showing, OK, Play and Pause work the video instead of the slideshow. */
+  function videoKey(k) {
+    switch (k) {
+      case KEY.OK: if (videoPlaying()) { video.pause(); } else { playVideo(); } return true;
+      case KEY.PLAY: playVideo(); return true;
+      case KEY.PAUSE: video.pause(); return true;
     }
     return false;
   }

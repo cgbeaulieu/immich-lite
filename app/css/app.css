@@ -169,3 +169,10 @@ button:focus { background: #4e8cff; border-color: #9cc0ff; }
   position: absolute; top: 48px; left: 50%; width: 640px; margin-left: -320px; padding: 14px 0;
   text-align: center; font-size: 26px; color: #fff; background: rgba(0, 0, 0, 0.7); border-radius: 32px;
 }
+
+/* Video: made by viewer.js. Hidden until it plays, so the still shows while it loads. */
+#viewer-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; }
+#viewer-vinfo { overflow: hidden; margin-bottom: 16px; }
+#viewer-vtime { float: right; margin-left: 24px; font-size: 22px; color: #dcdce0; }
+#viewer-vline { overflow: hidden; height: 6px; margin-top: 12px; border-radius: 3px; background: rgba(255, 255, 255, 0.25); }
+#viewer-vfill { width: 0; height: 100%; background: #4e8cff; }

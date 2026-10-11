@@ -375,9 +375,13 @@
   // ---------- rendering ----------
 
   function renderAsset(it) {
-    var r = { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : 'VIDEO' };
+    var r = { shape: 'photo', thumb: client.thumbUrl(it.id, 'thumbnail'), badge: it.isImage ? (it.isFavorite ? '♥' : '') : videoBadge(it) };
     if (it.stackCount > 1) { r.badge = (r.badge ? r.badge + '  ' : '') + '⧉ ' + it.stackCount; }
     return r;
+  }
+
+  function videoBadge(it) {
+    return 'VIDEO' + (it.duration ? ' ' + U.fmtDuration(it.duration / 1000) : '');
   }
 
   function renderCard(it) {
@@ -676,6 +680,7 @@
       index: index,
       autoplay: autoplay,
       urlFor: function (it) { return client.thumbUrl(it.id, 'preview'); },
+      videoUrlFor: function (it) { return client.videoUrl(it.id); },
       more: loadMore,
       toggleFavorite: toggleFavorite,
       stack: function (it, cb) { client.stack(it.stackId, cb); },
