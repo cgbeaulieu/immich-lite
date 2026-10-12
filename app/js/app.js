@@ -1081,11 +1081,16 @@
       password = U.$('password').value;
       if (!email || !password) { return refuse('Enter the email and password you use for immich.'); }
       setupMsg('Signing in...');
-      Immich.login(server, email, password, function (err, res) {
-        if (err) { return failed(err); }
-        Store.set('email', email);
-        done(true, 'Signed in');
-        signedIn(new Immich.Client(server, null, res.accessToken), server);
+      Net.via(server, function (apiBase) {
+        Immich.login(server, email, password, function (err, res) {
+          var signed;
+          if (err) { return failed(err); }
+          Store.set('email', email);
+          done(true, 'Signed in');
+          signed = new Immich.Client(server, null, res.accessToken);
+          signed.apiBase = apiBase;
+          signedIn(signed, server);
+        }, apiBase);
       });
       return;
     }
@@ -1094,10 +1099,13 @@
     if (!key) { return refuse('Enter an API key. Create one in immich: Account Settings > API Keys.'); }
     c = new Immich.Client(server, key);
     setupMsg('Connecting...');
-    c.me(function (err) {
-      if (err) { return failed(err); }
-      done(true, 'Signed in');
-      signedIn(c, server);
+    Net.via(server, function (apiBase) {
+      c.apiBase = apiBase;
+      c.me(function (err) {
+        if (err) { return failed(err); }
+        done(true, 'Signed in');
+        signedIn(c, server);
+      });
     });
   }
 
@@ -1248,8 +1256,12 @@
     if (server && (key || token)) {
       client = new Immich.Client(server, key, token);
       showScreen('browse');
-      openRail('photos');
-      loadAccountName();
+      setStatus('Connecting', 'loading');
+      Net.via(server, function (apiBase) {
+        client.apiBase = apiBase;
+        openRail('photos');
+        loadAccountName();
+      });
     } else {
       showSetup();
     }

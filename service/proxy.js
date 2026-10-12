@@ -1,0 +1,100 @@
+/* The app's API calls on the TV go through this small relay.
+
+   immich sends no CORS headers, and the TV's web engine won't let a packaged app
+   (a file:// page) read the replies of a cross-origin request without them. So the
+   app sends its JSON calls here instead, on the TV itself, and this forwards them to
+   immich and adds the CORS headers on the way back. Photos and videos don't need it:
+   <img> and <video> load from immich directly.
+
+   Listens on 127.0.0.1 only, so nothing else on the network can use it. Runs on
+   webOS 3's Node 0.12: ES5, no newer Node APIs. */
+'use strict';
+
+var http = require('http');
+var https = require('https');
+var url = require('url');
+
+var FIRST_PORT = 8791;
+var PORT_TRIES = 6;
+var CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Accept, x-api-key, Authorization',
+  'Access-Control-Max-Age': '600'
+};
+// Not passed on: hop-by-hop headers, and the TV page's origin (immich doesn't need it).
+var DROP = { host: 1, origin: 1, referer: 1, connection: 1, 'keep-alive': 1, 'transfer-encoding': 1, te: 1, upgrade: 1 };
+
+function Proxy(options) {
+  this.port = (options && options.port) || FIRST_PORT;
+  this.server = null;
+  this.target = null;           // url.parse() of the immich address
+}
+
+/* Points the relay at an immich server and makes sure it's listening. cb(err, port) */
+Proxy.prototype.start = function (target, cb) {
+  var self = this, t = url.parse(String(target || ''));
+  if (!/^https?:$/.test(t.protocol || '') || !t.hostname) { return cb(new Error('The server address must start with http:// or https://')); }
+  self.target = t;
+  if (self.server) { return cb(null, self.port); }
+  self.listen(self.port, PORT_TRIES, function (err) { cb(err, self.port); });
+};
+
+Proxy.prototype.stop = function () {
+  if (this.server) {
+    try { this.server.close(); } catch (e) { /* already closed */ }
+    this.server = null;
+  }
+};
+
+Proxy.prototype.listen = function (port, tries, cb) {
+  var self = this, server = http.createServer(function (req, res) { self.handle(req, res); });
+  server.once('error', function (err) {
+    if (err.code === 'EADDRINUSE' && tries > 1) { return self.listen(port + 1, tries - 1, cb); }
+    cb(err);
+  });
+  server.listen(port, '127.0.0.1', function () {
+    self.server = server;
+    self.port = port;
+    cb(null);
+  });
+};
+
+Proxy.prototype.handle = function (req, res) {
+  var t = this.target, headers = {}, k, out, base;
+  if (req.method === 'OPTIONS') { // the browser's CORS check
+    res.writeHead(204, CORS);
+    return res.end();
+  }
+  if (!t) { return fail(res, 503, 'The relay has no server yet'); }
+  for (k in req.headers) {
+    if (req.headers.hasOwnProperty(k) && !DROP[k]) { headers[k] = req.headers[k]; }
+  }
+  headers.host = t.host;
+  base = (t.pathname || '/').replace(/\/+$/, ''); // immich behind a sub-path keeps it
+  out = (t.protocol === 'https:' ? https : http).request({
+    protocol: t.protocol, hostname: t.hostname, port: t.port || (t.protocol === 'https:' ? 443 : 80),
+    method: req.method, path: base + req.url, headers: headers
+  }, function (up) {
+    var h = {}, k2;
+    for (k2 in up.headers) {
+      if (up.headers.hasOwnProperty(k2) && !DROP[k2] && k2.indexOf('access-control-') !== 0) { h[k2] = up.headers[k2]; }
+    }
+    for (k2 in CORS) { if (CORS.hasOwnProperty(k2)) { h[k2] = CORS[k2]; } }
+    res.writeHead(up.statusCode, h);
+    up.pipe(res);
+  });
+  out.setTimeout(60000, function () { out.abort(); });
+  out.on('error', function (e) { fail(res, 502, 'Could not reach immich: ' + e.message); });
+  req.pipe(out);
+};
+
+function fail(res, status, message) {
+  if (res.headersSent) { return res.end(); }
+  var h = { 'Content-Type': 'application/json; charset=utf-8' }, k;
+  for (k in CORS) { if (CORS.hasOwnProperty(k)) { h[k] = CORS[k]; } }
+  res.writeHead(status, h);
+  res.end(JSON.stringify({ message: message, statusCode: status }));
+}
+
+module.exports = Proxy;

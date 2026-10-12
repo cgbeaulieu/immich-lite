@@ -31,7 +31,17 @@ var Immich = (function () {
     }
     if (this.apiKey) { q.push('apiKey=' + encodeURIComponent(this.apiKey)); }
     else if (this.token) { q.push('sessionKey=' + encodeURIComponent(this.token)); }
-    return this.server + '/api' + path + (q.length ? '?' + q.join('&') : '');
+    return (this.apiBase || this.server) + '/api' + path + (q.length ? '?' + q.join('&') : '');
+  };
+
+  /* Photos and videos load straight from the server; only JSON calls take apiBase
+     (the TV's relay, see net.js). */
+  Client.prototype.mediaUrl = function (path, params) {
+    var base = this.apiBase, u;
+    this.apiBase = null;
+    u = this.url(path, params);
+    this.apiBase = base;
+    return u;
   };
 
   Client.prototype.get = function (path, params, cb) { this.request('GET', path, params, null, cb); };
@@ -232,11 +242,11 @@ var Immich = (function () {
 
   /* size: 'thumbnail' (small webp, for the grid) or 'preview' (large jpeg, for full screen). */
   Client.prototype.thumbUrl = function (id, size) {
-    return this.url('/assets/' + encodeURIComponent(id) + '/thumbnail', { size: size || 'thumbnail' });
+    return this.mediaUrl('/assets/' + encodeURIComponent(id) + '/thumbnail', { size: size || 'thumbnail' });
   };
 
   Client.prototype.personThumbUrl = function (id) {
-    return this.url('/people/' + encodeURIComponent(id) + '/thumbnail');
+    return this.mediaUrl('/people/' + encodeURIComponent(id) + '/thumbnail');
   };
 
   // ---------- video ----------
@@ -244,7 +254,7 @@ var Immich = (function () {
   /* The video for a <video> tag. immich serves its transcoded copy here (H.264 MP4 by
      default, which the TV decodes in hardware) and supports range requests for seeking. */
   Client.prototype.videoUrl = function (id) {
-    return this.url('/assets/' + encodeURIComponent(id) + '/video/playback');
+    return this.mediaUrl('/assets/' + encodeURIComponent(id) + '/video/playback');
   };
 
   // ---------- helpers ----------
@@ -335,8 +345,10 @@ var Immich = (function () {
   }
 
   /* Signs in with email and password: cb(err, {accessToken, name, userEmail, ...}). */
-  function login(server, email, password, cb) {
+  /* apiBase (optional): where to send the call, see net.js. */
+  function login(server, email, password, cb, apiBase) {
     var c = new Client(server);
+    c.apiBase = apiBase || null;
     c.post('/auth/login', { email: email, password: password }, function (err, res) {
       if (err && err.status === 401) { err.message = 'Wrong email or password'; }
       if (!err && (!res || !res.accessToken)) { err = fail(0, 'The server did not sign you in'); }
