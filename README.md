@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk"><img src="https://img.shields.io/badge/Download-.ipk-43a047?style=for-the-badge&logo=lg&logoColor=a50034&labelColor=ededed" alt="Download the latest .ipk"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?style=for-the-badge&label=Download%20.ipk&logo=lg&logoColor=a50034&color=43a047&labelColor=ededed" alt="Download the latest .ipk"></a>
 </p>
 
 > Unofficial community app. Not affiliated with or endorsed by immich or FUTO. "immich" is a trademark of its owners.
