@@ -108,7 +108,7 @@ function mapTile(req, res, what, began) {
   if (req.method !== 'GET' || !MAP_PATH.test(path)) { return fail(res, 404, 'Not a map tile'); }
   out = https.get({
     hostname: MAP_HOST, path: path,
-    headers: { 'User-Agent': 'immich-lite-webos (+https://github.com/cgbeaulieu/immich-lite-webos)' }
+    headers: { 'User-Agent': 'immich-lite (+https://github.com/cgbeaulieu/immich-lite)' }
   }, function (up) {
     var h = {}, k;
     for (k in up.headers) {
