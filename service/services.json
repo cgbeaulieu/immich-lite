@@ -1,0 +1,10 @@
+{
+  "id": "com.cgbeaulieu.immichlite.service",
+  "description": "Phone sign-in for immich lite",
+  "services": [
+    {
+      "name": "com.cgbeaulieu.immichlite.service",
+      "description": "Phone sign-in for immich lite"
+    }
+  ]
+}

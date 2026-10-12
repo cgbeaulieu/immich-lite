@@ -102,6 +102,27 @@ How it plays out by way of running the app:
 
 `immich.js` only needs a different base URL for 3a or 3c. Option 3b would swap its `get()` for a Luna service call.
 
+## Phone sign-in (QR code)
+
+The IPK carries a webOS JS service, `com.cgbeaulieu.immichlite.service` (`service/`), besides the
+web app. It runs on the TV's Node v0.12.2 (checked on the UH7650 over SSH) with the built-in
+`webos-service` module, so it is ES5 too.
+
+| Piece | What it does |
+|---|---|
+| `service/pairing.js` | A small HTTP server on port 8790 (the next free one up to 8795), started by the sign-in screen. Serves the phone page, `/info` (the server address the TV already has), `/submit` (takes the address and email + password or API key with the 8-character code), `/status` (whether the TV signed in) |
+| `service/service.js` | The service bus side: `start {server}` -> `{code, url}`, `poll` -> credentials once, `report {ok, message}`, `stop`. Holds an activity so webOS doesn't stop it while waiting |
+| `service/phone.html` | The page the phone opens |
+| `app/js/pairing.js` | The QR card: draws the code (app/lib/qrcode.js), polls every 2 s, signs in with what arrives, reports back. Calls the service through PalmServiceBridge on the TV, or `/pair/` on the dev server |
+
+Safety: listens only while the sign-in screen is up (stopped a few seconds after leaving it),
+needs the code shown on the TV (8 wrong ones lock it), expires after 10 minutes, keeps the
+credentials in memory until the app takes them, and the app never stores the password. It is
+plain HTTP on the home network, like the rest of the app's traffic to immich.
+
+Packaging needs the service in the IPK: `ares-package app service`, or the equivalent layout if
+we build the IPK ourselves (`usr/palm/applications/<id>/` and `usr/palm/services/<id>.service/`).
+
 ## Next steps
 
 1. **IPK packaging:** app icons (80x80 and 130x130 PNG), and a small script that builds the `.ipk` (an `ar` archive of `debian-binary`, `control.tar.gz` and `data.tar.gz`), so no webOS SDK is needed.

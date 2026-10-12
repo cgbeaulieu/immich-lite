@@ -60,6 +60,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
     def route(self, method):
         path = urlsplit(self.path).path
+        if path.startswith("/pair/"):
+            return PhoneSignIn(self).handle(method, path)
         if path.startswith("/api/"):
             if self.mock:
                 return Mock(self).handle(method, path)
@@ -101,6 +103,116 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
+
+
+class PhoneSignIn:
+    """Phone sign-in for the browser, so the QR flow can be tried from a PC and a phone.
+    Same protocol as the TV's service (service/pairing.js), with the app's calls and the
+    phone page under /pair/ instead of the webOS service bus and the service's own port:
+
+      app:   POST /pair/start {server}, /pair/poll, /pair/report {ok, message}, /pair/stop
+      phone: GET /pair/phone?c=CODE (service/phone.html), /pair/info, /pair/status,
+             POST /pair/submit
+    """
+
+    ALPHABET = "23456789ABCDEFGHJKMNPQRSTUVWXYZ"
+    LIFETIME = 10 * 60
+    MAX_WRONG = 8
+    state = {"code": "", "creds": None, "result": None, "prefill": "", "expires": 0, "wrong": 0}
+
+    def __init__(self, handler):
+        self.h = handler
+
+    def body(self):
+        length = int(self.h.headers.get("Content-Length") or 0)
+        if length > 8192:
+            return None
+        try:
+            data = json.loads(self.h.rfile.read(length) or b"{}")
+        except ValueError:
+            return None
+        return data if isinstance(data, dict) else {}
+
+    def expired(self):
+        import time
+        return not self.state["code"] or time.time() > self.state["expires"]
+
+    def handle(self, method, path):
+        import time
+        st, send = self.state, self.h.send_json
+        if path == "/pair/start" and method == "POST":
+            b = self.body() or {}
+            code = "".join(random.SystemRandom().choice(self.ALPHABET) for _ in range(8))
+            st.update(code=code, creds=None, result=None, wrong=0, prefill=str(b.get("server") or ""),
+                      expires=time.time() + self.LIFETIME)
+            url = "http://%s:%d/pair/phone?c=%s" % (lan_address(), self.h.server.server_address[1], code)
+            return send(200, {"code": code[:4] + "-" + code[4:], "url": url, "expiresIn": self.LIFETIME * 1000})
+        if path == "/pair/poll" and method == "POST":
+            if self.expired():
+                return send(200, {"state": "expired"})
+            if st["creds"]:
+                creds, st["creds"] = st["creds"], None
+                return send(200, {"state": "received", "credentials": creds})
+            return send(200, {"state": "waiting"})
+        if path == "/pair/report" and method == "POST":
+            b = self.body() or {}
+            st["result"] = {"ok": bool(b.get("ok")), "message": str(b.get("message") or "")}
+            return send(200, {"ok": True})
+        if path == "/pair/stop" and method == "POST":
+            st.update(code="", creds=None, result=None, expires=0)
+            return send(200, {"ok": True})
+        if path == "/pair/phone" and method == "GET":
+            with open(os.path.join(ROOT, "service", "phone.html"), "rb") as f:
+                raw = f.read()
+            self.h.send_response(200)
+            self.h.send_header("Content-Type", "text/html; charset=utf-8")
+            self.h.send_header("Content-Length", str(len(raw)))
+            self.h.end_headers()
+            self.h.wfile.write(raw)
+            return None
+        if path == "/pair/info" and method == "GET":
+            return send(200, {"server": st["prefill"], "expired": self.expired()})
+        if path == "/pair/status" and method == "GET":
+            return send(200, {"result": st["result"]})
+        if path == "/pair/submit" and method == "POST":
+            b = self.body()
+            if b is None:
+                return send(400, {"error": "That request could not be read"})
+            code = "".join(c for c in str(b.get("code") or "").upper() if c.isalnum())
+            server = str(b.get("server") or "").strip()
+            if self.expired():
+                return send(410, {"error": "This code has expired. Look at the TV for a new one."})
+            if st["wrong"] >= self.MAX_WRONG:
+                return send(429, {"error": "Too many wrong codes. Restart sign-in on the TV."})
+            if code != st["code"]:
+                st["wrong"] += 1
+                return send(403, {"error": "That code doesn\u2019t match the one on the TV."})
+            if not (server.lower().startswith("http://") or server.lower().startswith("https://")):
+                return send(400, {"error": "The server address must start with http:// or https://"})
+            server = server.rstrip("/")
+            if b.get("apiKey"):
+                st["creds"] = {"server": server, "apiKey": str(b["apiKey"]).strip()}
+            elif b.get("email") and b.get("password"):
+                st["creds"] = {"server": server, "email": str(b["email"]).strip(), "password": str(b["password"])}
+            else:
+                return send(400, {"error": "Enter your email and password, or an API key."})
+            st["result"] = None
+            return send(200, {"ok": True})
+        return send(404, {"error": "Not found"})
+
+
+def lan_address():
+    """This PC's address on the home network (no packets are sent: UDP connect only
+    picks the route)."""
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(("10.255.255.255", 1))
+            return sock.getsockname()[0]
+        finally:
+            sock.close()
+    except OSError:
+        return "127.0.0.1"
 
 
 class Server(http.server.ThreadingHTTPServer):

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in on your TV &middot; immich lite</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; min-height: 100%; }
+  body {
+    font-family: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #f4f4f7; background: #0b0a12;
+    background-image: radial-gradient(circle at 85% -10%, rgba(106, 47, 214, 0.55), transparent 55%),
+                      radial-gradient(circle at -10% 110%, rgba(201, 100, 26, 0.45), transparent 55%);
+    background-attachment: fixed;
+  }
+  main { max-width: 440px; margin: 0 auto; padding: 36px 22px 48px; }
+  .brand { display: flex; align-items: center; font-size: 20px; font-weight: 700; margin-bottom: 28px; }
+  .brand svg { width: 38px; height: 38px; margin-right: 12px; }
+  .brand span { font-weight: 400; color: #a1a1ad; margin-left: 6px; }
+  h1 { font-size: 28px; margin: 0 0 8px; letter-spacing: -0.3px; }
+  p.lead { margin: 0 0 26px; color: #a1a1ad; font-size: 16px; line-height: 1.45; }
+  label { display: block; margin: 18px 0 8px; font-size: 14px; color: #d6d6de; }
+  input {
+    width: 100%; padding: 14px 16px; font-size: 17px; color: #fff;
+    background: rgba(10, 10, 14, 0.8); border: 2px solid rgba(255, 255, 255, 0.14); border-radius: 12px; outline: none;
+    -webkit-appearance: none;
+  }
+  input:focus { border-color: #8fb3ff; }
+  .seg { display: flex; margin-top: 22px; padding: 4px; background: rgba(10, 10, 14, 0.7);
+    border: 2px solid rgba(255, 255, 255, 0.12); border-radius: 14px; }
+  .seg button { flex: 1; padding: 11px 0; font-size: 15px; color: #a1a1ad; background: none; border: 0; border-radius: 10px; }
+  .seg button.on { color: #fff; background: #2b3470; font-weight: 600; }
+  .go { width: 100%; margin-top: 26px; padding: 16px; font-size: 17px; font-weight: 700; color: #101018;
+    background: #e9e9f0; border: 0; border-radius: 12px; }
+  .go:disabled { opacity: 0.6; }
+  .msg { margin-top: 18px; min-height: 22px; font-size: 15px; line-height: 1.45; color: #c8c8d2; }
+  .msg.error { color: #ff9a9a; }
+  .msg.ok { color: #8fe3a8; }
+  .note { margin-top: 30px; padding-top: 18px; border-top: 1px solid rgba(255, 255, 255, 0.1);
+    font-size: 13px; line-height: 1.5; color: #8a8a96; }
+  .hidden { display: none; }
+  .done { text-align: center; padding-top: 30px; }
+  .done .big { font-size: 56px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">
+    <svg viewBox="0 0 48 48" aria-hidden="true"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#7aa7ff"/><stop offset="0.55" stop-color="#9b7bff"/><stop offset="1" stop-color="#ff7aa8"/></linearGradient></defs><rect x="2" y="2" width="44" height="44" rx="13" fill="url(#g)"/><path d="M11 33l9-10 6 6 4-4 7 8z" fill="#fff"/><circle cx="31" cy="16.5" r="3.6" fill="#fff"/></svg>
+    immich<span>lite</span>
+  </div>
+
+  <form id="form" autocomplete="on">
+    <h1>Sign in on your TV</h1>
+    <p class="lead">Type your immich details here and your TV signs in. Nothing is stored on this phone.</p>
+
+    <label for="server">Server address</label>
+    <input id="server" type="url" inputmode="url" placeholder="http://192.168.1.10:2283" autocapitalize="off" autocorrect="off" spellcheck="false">
+
+    <div class="seg"><button type="button" id="m-login" class="on">Email &amp; password</button><button type="button" id="m-key">API key</button></div>
+
+    <div id="f-login">
+      <label for="email">Email</label>
+      <input id="email" type="email" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <label for="password">Password</label>
+      <input id="password" type="password" autocomplete="current-password">
+    </div>
+    <div id="f-key" class="hidden">
+      <label for="apikey">API key</label>
+      <input id="apikey" type="password" autocapitalize="off" autocorrect="off" spellcheck="false">
+    </div>
+
+    <div id="f-code" class="hidden">
+      <label for="code">Code shown on the TV</label>
+      <input id="code" type="text" autocapitalize="characters" autocorrect="off" spellcheck="false" placeholder="ABCD-2345">
+    </div>
+
+    <button class="go" id="go" type="submit">Sign in on the TV</button>
+    <div class="msg" id="msg"></div>
+    <div class="note">This page talks only to your TV, over your home network. Your password goes to the TV,
+      which uses it once to sign in to immich and doesn't keep it.</div>
+  </form>
+
+  <div id="done" class="done hidden">
+    <div class="big">&#10003;</div>
+    <h1>You're signed in</h1>
+    <p class="lead">Your TV is showing your photos. You can close this page.</p>
+  </div>
+</main>
+
+<script>
+/* ES5 so it also works on older phones. Talks to the TV at 'info', 'submit' and 'status'
+   (relative, so it works wherever the page is served). */
+(function () {
+  var mode = 'login', code = (location.search.match(/[?&]c=([0-9A-Za-z-]+)/) || [])[1] || '';
+  function $(id) { return document.getElementById(id); }
+
+  function request(method, url, body, cb) {
+    var x = new XMLHttpRequest();
+    x.open(method, url, true);
+    x.timeout = 15000;
+    x.onreadystatechange = function () {
+      var data = null;
+      if (x.readyState !== 4) { return; }
+      try { data = JSON.parse(x.responseText); } catch (e) { data = null; }
+      cb(x.status, data);
+    };
+    if (body) { x.setRequestHeader('Content-Type', 'application/json'); x.send(JSON.stringify(body)); } else { x.send(); }
+  }
+
+  function say(text, kind) { $('msg').textContent = text || ''; $('msg').className = 'msg' + (kind ? ' ' + kind : ''); }
+
+  function setMode(m) {
+    mode = m;
+    $('m-login').className = m === 'login' ? 'on' : '';
+    $('m-key').className = m === 'key' ? 'on' : '';
+    $('f-login').className = m === 'login' ? '' : 'hidden';
+    $('f-key').className = m === 'key' ? '' : 'hidden';
+  }
+
+  /* After sending, wait for the TV to say whether signing in worked. */
+  function waitForTv(tries) {
+    request('GET', 'status', null, function (status, data) {
+      var r = data && data.result;
+      if (r && r.ok) { $('form').className = 'hidden'; $('done').className = 'done'; return; }
+      if (r && !r.ok) { $('go').disabled = false; return say((r.message || 'The TV could not sign in') + '. Check and send again.', 'error'); }
+      if (tries > 0) { return setTimeout(function () { waitForTv(tries - 1); }, 1000); }
+      $('go').disabled = false;
+      say('Sent. If the TV hasn’t signed in, check it and send again.', 'ok');
+    });
+  }
+
+  $('m-login').onclick = function () { setMode('login'); };
+  $('m-key').onclick = function () { setMode('key'); };
+  if (!code) { $('f-code').className = ''; }
+
+  request('GET', 'info', null, function (status, data) {
+    if (data && data.server && !$('server').value) { $('server').value = data.server; }
+    if (data && data.expired) { say('This code has expired. Look at the TV for a new one.', 'error'); }
+  });
+
+  $('form').onsubmit = function (e) {
+    var body = { code: code || $('code').value, server: $('server').value.trim() };
+    if (e && e.preventDefault) { e.preventDefault(); }
+    if (mode === 'key') { body.apiKey = $('apikey').value.trim(); }
+    else { body.email = $('email').value.trim(); body.password = $('password').value; }
+    $('go').disabled = true;
+    say('Sending to your TV...');
+    request('POST', 'submit', body, function (status, data) {
+      if (status === 200) { say('Signing in on the TV...', 'ok'); return waitForTv(20); }
+      $('go').disabled = false;
+      say(data && data.error ? data.error : (status ? 'The TV turned this down (' + status + ').' : 'Couldn’t reach the TV. Is this phone on the same Wi-Fi?'), 'error');
+    });
+    return false;
+  };
+})();
+</script>
+</body>
+</html>

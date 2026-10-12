@@ -96,7 +96,21 @@ b { font-weight: bold; }
 .msg { margin-top: 22px; min-height: 34px; font-size: 22px; line-height: 1.4; color: #c8c8d2; }
 .msg.error { color: #ff9a9a; }
 
-.setup-right { position: absolute; left: 1090px; top: 250px; width: 600px; }
+.setup-right { position: absolute; left: 1090px; top: 120px; width: 600px; }
+#help-card { margin-top: 130px; }
+
+/* Phone sign-in: the QR card (filled by pairing.js). */
+.qr-card { text-align: center; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.6); }
+.qr-title { margin-bottom: 26px; font-size: 32px; font-weight: bold; }
+.qr-box {
+  display: inline-block; padding: 26px; border-radius: 28px; background: #fff;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+}
+.qr-box img { display: block; }
+.qr-line { margin-top: 26px; font-size: 26px; color: #e4e4ec; }
+.qr-url { margin-top: 8px; font-size: 36px; font-weight: bold; letter-spacing: 0.3px; }
+.qr-code { margin-top: 6px; font-size: 64px; font-weight: bold; letter-spacing: 10px; }
+.qr-state { min-height: 34px; margin-top: 14px; font-size: 24px; color: #ffd27b; }
 .help-card {
   padding: 44px 48px; border-radius: 26px;
   background: rgba(8, 8, 12, 0.62); border: 1px solid rgba(255, 255, 255, 0.1);

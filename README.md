@@ -85,7 +85,14 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 
 ## Signing in
 
-Sign in with the **email and password** you use for immich (easiest to type on a TV), or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
+**With your phone:** the sign-in screen shows a QR code. Scan it, type your immich address and
+email + password (or an API key) on the phone, and the TV signs in. The phone shows whether it
+worked. It's handled by a small service on the TV (`service/`, webOS's built-in Node 0.12) that
+listens on your home network only while the sign-in screen is up. It needs the code shown on the TV,
+gives up after several wrong codes, stops after 10 minutes, and never stores the password: the TV
+uses it once to sign in.
+
+**On the TV:** sign in with the **email and password** you use for immich, or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
 
 <details>
 <summary><b>API key permissions</b></summary>
@@ -121,7 +128,8 @@ The Magic Remote pointer works too: point to focus, click to open, and on the ma
 - **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
 - **Server:** self-hosted immich v3, through its REST API.
 - **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
-- **No build step:** the files in `app/` are what ships.
+- **No build step:** the files in `app/` (the web app) and `service/` (the phone sign-in service) are what ships.
+- **QR codes** are drawn by [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), bundled unchanged as `app/lib/qrcode.js`.
 
 ## Development
 
@@ -144,10 +152,18 @@ Open `http://localhost:8000/` on this PC, or `http://<this-pc>:8000/` in the TV'
 
 The mock's videos all play the same tiny 6-second clip (built by the dev server, no files needed), except December 2025's, which fail on purpose to show the "can't play" fallback.
 
+Phone sign-in works here too: the dev server offers the TV service's calls under `/pair/`, so the
+QR code on the PC's sign-in screen opens on a phone on the same Wi-Fi (Windows may ask to let Python
+through the firewall). The service's own tests run on the PC with Node:
+
+```bash
+node tools/test_pairing.js
+```
+
 Before committing JS, check it still parses as ES5:
 
 ```bash
-for f in app/js/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not ES5: $f"; done
+for f in app/js/*.js service/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not ES5: $f"; done
 ```
 
 ### Screenshots
@@ -172,4 +188,4 @@ Pass shot names (`node tools/screenshots.mjs timeline albums`) to retake only so
 
 ## License
 
-[Mozilla Public License 2.0](LICENSE) (MPL-2.0). The stock photos in the screenshots are under the [Unsplash License](https://unsplash.com/license); see [the credits](docs/screenshots/CREDITS.md).
+[Mozilla Public License 2.0](LICENSE) (MPL-2.0), except `app/lib/qrcode.js` (qrcode-generator, MIT license, Copyright (c) 2009 Kazuhiko Arase). The stock photos in the screenshots are under the [Unsplash License](https://unsplash.com/license); see [the credits](docs/screenshots/CREDITS.md).

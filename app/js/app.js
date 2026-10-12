@@ -987,6 +987,7 @@
   }
 
   function showScreen(name) {
+    if (screen === 'setup' && name !== 'setup') { Pairing.hide(); } // the TV stops listening for a phone
     screen = name;
     U.toggleClass(U.$('setup'), 'hidden', name !== 'setup');
     U.toggleClass(U.$('browse'), 'hidden', name === 'setup');
@@ -1002,6 +1003,25 @@
     setupMsg(message || (client ? 'Press Back to return to your photos.' : ''), !!message);
     showScreen('setup');
     U.$(!server ? 'server' : (setupMode === 'login' ? (U.$('email').value ? 'password' : 'email') : 'apikey')).focus();
+    Pairing.show(server, {
+      onCredentials: phoneCredentials,
+      onUnavailable: function () { U.show(U.$('help-card')); } // e.g. no TV service: keep the typing tips
+    });
+  }
+
+  /* Details sent from a phone (the QR code): fill the form and sign in as if typed,
+     then tell the phone how it went. The password is never stored. */
+  function phoneCredentials(c) {
+    U.$('server').value = c.server;
+    if (c.apiKey) {
+      setMode('key');
+      U.$('apikey').value = c.apiKey;
+    } else {
+      setMode('login');
+      U.$('email').value = c.email;
+      U.$('password').value = c.password;
+    }
+    connect(function (ok, message) { Pairing.report(ok, message); });
   }
 
   function setupMsg(text, isError) {
@@ -1046,30 +1066,38 @@
       ', as the server. The dev server passes requests on to immich.';
   }
 
-  function connect() {
+  /* done(ok, message) is optional: phone sign-in uses it to report back. */
+  function connect(done) {
     var server = U.$('server').value.trim().replace(/\/+$/, ''), email, password, key, c;
-    function failed(err) { setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true); }
-    if (!/^https?:\/\//i.test(server)) { return setupMsg('The server address must start with http:// or https://', true); }
+    done = typeof done === 'function' ? done : function () {};
+    function failed(err) {
+      setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true);
+      done(false, err.message);
+    }
+    function refuse(text) { setupMsg(text, true); done(false, text); }
+    if (!/^https?:\/\//i.test(server)) { return refuse('The server address must start with http:// or https://'); }
 
     if (setupMode === 'login') {
       email = U.$('email').value.trim();
       password = U.$('password').value;
-      if (!email || !password) { return setupMsg('Enter the email and password you use for immich.', true); }
+      if (!email || !password) { return refuse('Enter the email and password you use for immich.'); }
       setupMsg('Signing in...');
       Immich.login(server, email, password, function (err, res) {
         if (err) { return failed(err); }
         Store.set('email', email);
+        done(true, 'Signed in');
         signedIn(new Immich.Client(server, null, res.accessToken), server);
       });
       return;
     }
 
     key = U.$('apikey').value.trim();
-    if (!key) { return setupMsg('Enter an API key. Create one in immich: Account Settings > API Keys.', true); }
+    if (!key) { return refuse('Enter an API key. Create one in immich: Account Settings > API Keys.'); }
     c = new Immich.Client(server, key);
     setupMsg('Connecting...');
     c.me(function (err) {
       if (err) { return failed(err); }
+      done(true, 'Signed in');
       signedIn(c, server);
     });
   }
@@ -1082,6 +1110,7 @@
     Store.set('apiKey', c.apiKey);
     Store.set('token', c.token);
     client = c;
+    U.$('password').value = '';
     if (document.activeElement && document.activeElement.blur) { document.activeElement.blur(); }
     showScreen('browse');
     openRail('photos');
@@ -1207,7 +1236,7 @@
       }
     });
 
-    U.$('connect').onclick = connect;
+    U.$('connect').onclick = function () { connect(); };
     U.$('chip-http').onclick = U.$('chip-https').onclick = U.$('chip-port').onclick = function () { applyChip(this.id); };
     U.$('mode-login').onclick = function () { setMode('login'); };
     U.$('mode-key').onclick = function () { setMode('key'); };
