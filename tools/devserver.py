@@ -180,6 +180,8 @@ class PhoneSignIn:
                 return send(400, {"error": "That request could not be read"})
             code = "".join(c for c in str(b.get("code") or "").upper() if c.isalnum())
             server = str(b.get("server") or "").strip()
+            if server and "://" not in server:
+                server = "http://" + server  # "mediaserver:2283" works too
             if self.expired():
                 return send(410, {"error": "This code has expired. Look at the TV for a new one."})
             if st["wrong"] >= self.MAX_WRONG:

@@ -1068,6 +1068,7 @@
   /* done(ok, message) is optional: phone sign-in uses it to report back. */
   function connect(done) {
     var server = U.$('server').value.trim().replace(/\/+$/, ''), email, password, key, c;
+    if (server && !/^[a-z][a-z0-9+.-]*:\/\//i.test(server)) { server = 'http://' + server; } // "mediaserver:2283" works too
     done = typeof done === 'function' ? done : function () {};
     function failed(err) {
       setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true);
@@ -1077,7 +1078,7 @@
     if (!/^https?:\/\//i.test(server)) { return refuse('The server address must start with http:// or https://'); }
 
     if (setupMode === 'login') {
-      email = U.$('email').value.trim();
+      email = U.$('email').value.trim().toLowerCase(); // immich stores emails in lower case
       password = U.$('password').value;
       if (!email || !password) { return refuse('Enter the email and password you use for immich.'); }
       setupMsg('Signing in...');

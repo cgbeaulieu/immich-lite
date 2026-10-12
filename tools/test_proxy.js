@@ -60,8 +60,16 @@ proxy.start(target, function (err, port) {
           // 5. Only reachable from this machine
           assert.equal(proxy.server.address().address, '127.0.0.1');
           console.log('ok  listens on 127.0.0.1 only');
-          proxy.stop();
-          console.log('\nAll relay checks passed.');
+          // 6. A name the TV can't look up is explained in words
+          proxy.start('http://no-such-host.invalid:2283', function () {
+            request('GET', '/api/server/ping', null, {}, function (s6, h6, j6) {
+              assert.equal(s6, 502);
+              assert(/find "no-such-host.invalid"/.test(j6.message), j6.message);
+              console.log('ok  unknown name explained: ' + j6.message);
+              proxy.stop();
+              console.log('\nAll relay checks passed.');
+            });
+          });
         });
       });
     });

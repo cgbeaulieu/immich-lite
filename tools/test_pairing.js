@@ -132,6 +132,14 @@ step('the phone sees the TV\'s result', function (next) {
   });
 });
 
+step('an address without http:// gets it added', function (next) {
+  request('POST', '/submit', { code: code, server: 'mediaserver:2283', email: 'a@b.c', password: 'p' }, function (status) {
+    assert.equal(status, 200);
+    assert.equal(pairing.poll().credentials.server, 'http://mediaserver:2283');
+    next();
+  });
+});
+
 step('an API key works too, and a resend clears the old result', function (next) {
   request('POST', '/submit', { code: code, server: 'https://photos.example.com', apiKey: ' key123 ' }, function (status) {
     assert.equal(status, 200);

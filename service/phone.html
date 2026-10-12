@@ -56,7 +56,7 @@
     <p class="lead">Type your immich details here and your TV signs in. Nothing is stored on this phone.</p>
 
     <label for="server">Server address</label>
-    <input id="server" type="url" inputmode="url" placeholder="http://192.168.1.10:2283" autocapitalize="off" autocorrect="off" spellcheck="false">
+    <input id="server" type="text" inputmode="url" placeholder="http://192.168.1.10:2283" autocapitalize="off" autocorrect="off" spellcheck="false">
 
     <div class="seg"><button type="button" id="m-login" class="on">Email &amp; password</button><button type="button" id="m-key">API key</button></div>
 
@@ -141,10 +141,12 @@
   });
 
   $('form').onsubmit = function (e) {
-    var body = { code: code || $('code').value, server: $('server').value.trim() };
+    var server = $('server').value.trim();
+    if (server && !/^[a-z][a-z0-9+.-]*:\/\//i.test(server)) { server = 'http://' + server; } // "mediaserver:2283" works too
+    var body = { code: code || $('code').value, server: server };
     if (e && e.preventDefault) { e.preventDefault(); }
     if (mode === 'key') { body.apiKey = $('apikey').value.trim(); }
-    else { body.email = $('email').value.trim(); body.password = $('password').value; }
+    else { body.email = $('email').value.trim().toLowerCase(); body.password = $('password').value; } // immich stores emails in lower case
     $('go').disabled = true;
     say('Sending to your TV...');
     request('POST', 'submit', body, function (status, data) {

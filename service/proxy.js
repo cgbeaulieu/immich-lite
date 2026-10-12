@@ -89,10 +89,23 @@ Proxy.prototype.handle = function (req, res) {
   out.setTimeout(60000, function () { out.abort(); });
   out.on('error', function (e) {
     trail.add('relay: ' + what + ' failed after ' + (Date.now() - began) + ' ms: ' + e.message);
-    fail(res, 502, 'Could not reach immich: ' + e.message);
+    fail(res, 502, reachError(e, t));
   });
   req.pipe(out);
 };
+
+/* Why the TV couldn't reach immich, in words. */
+function reachError(e, t) {
+  var host = t.hostname;
+  if (e.code === 'ENOTFOUND' || e.code === 'EAI_AGAIN') {
+    return 'The TV can\u2019t find "' + host + '". Use the server\u2019s IP address instead (like http://192.168.1.10:2283)';
+  }
+  if (e.code === 'ECONNREFUSED') { return host + ' turned the connection down. Is immich running, and is the port right?'; }
+  if (e.code === 'ETIMEDOUT' || e.code === 'EHOSTUNREACH' || e.code === 'ECONNRESET') {
+    return 'The TV couldn\u2019t reach ' + host + '. Is it on and on the same network?';
+  }
+  return 'Could not reach immich: ' + e.message;
+}
 
 function fail(res, status, message) {
   if (res.headersSent) { return res.end(); }

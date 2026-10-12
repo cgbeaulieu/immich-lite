@@ -133,7 +133,7 @@ Pairing.prototype.handle = function (req, res) {
 };
 
 Pairing.prototype.submit = function (b, done) {
-  var code = String(b.code || '').toUpperCase().replace(/[^0-9A-Z]/g, ''), server = String(b.server || '').trim();
+  var code = String(b.code || '').toUpperCase().replace(/[^0-9A-Z]/g, ''), server = withScheme(b.server);
   if (this.expired()) { return done(410, { error: 'This code has expired. Look at the TV for a new one.' }); }
   if (this.wrong >= MAX_WRONG) { return done(429, { error: 'Too many wrong codes. Restart sign-in on the TV.' }); }
   if (code !== this.code) {
@@ -158,6 +158,12 @@ Pairing.prototype.submit = function (b, done) {
 };
 
 // ---------- helpers ----------
+
+/* "mediaserver:2283" -> "http://mediaserver:2283" (most home servers are plain http). */
+function withScheme(address) {
+  var s = String(address || '').trim();
+  return s && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? 'http://' + s : s;
+}
 
 function newCode() {
   var bytes = crypto.randomBytes(8), out = '', i;
