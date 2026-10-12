@@ -1,6 +1,9 @@
 /* Photo map for the remote: an OpenStreetMap map with photos grouped into bubbles.
-   Arrows move the map, CH+/CH- zoom, OK opens the bubble under the crosshair in the
-   middle (or zooms in). The Magic Remote can drag, scroll to zoom and click bubbles.
+   Two ways to use it, and the map follows whichever is in use:
+   - Magic Remote pointer: point at a bubble (it lights up) and click it, scroll to zoom
+     toward the pointer, drag to move. No crosshair: it would only mislead.
+   - Arrow keys: arrows move the map, CH+/CH- zoom, OK opens the bubble nearest the
+     crosshair in the middle (or zooms in).
 
    Hand-rolled rather than Leaflet: it needs to be remote-first, and it has to run on
    the old engine. Markers are clustered on a pixel grid each time the view changes. */
@@ -25,6 +28,7 @@ var MapView = (function () {
   var zoom = 3, cx = 0.5, cy = 0.4;
   var tiles = {}, clusters = [], picked = null, handlers = null;
   var sources = {}, sourceOrder = [], queue = [], fetching = 0, wanted = {}, stamp = 0;
+  var pointing = false, hovered = null, lastOpen = 0;
 
   /* Web Mercator: longitude/latitude to 0..1 world coordinates. */
   function project(lat, lon) {
@@ -53,9 +57,10 @@ var MapView = (function () {
     credit.textContent = '© OpenStreetMap contributors · map tiles by immich';
     box.appendChild(credit);
 
-    // Magic Remote: drag to move, wheel to zoom.
+    // Magic Remote: point, drag to move, wheel to zoom.
     box.addEventListener('mousedown', function (e) { drag = { x: e.clientX, y: e.clientY, moved: false }; }, false);
     box.addEventListener('mousemove', function (e) {
+      setPointing(true);
       if (!drag) { return; }
       var dx = e.clientX - drag.x, dy = e.clientY - drag.y, scale = TILE * Math.pow(2, zoom);
       if (Math.abs(dx) + Math.abs(dy) < 4 && !drag.moved) { return; }
@@ -66,16 +71,48 @@ var MapView = (function () {
     }, false);
     window.addEventListener('mouseup', function () { setTimeout(function () { drag = null; }, 0); }, false);
     box.addEventListener('mousewheel', function (e) {
-      setZoom(zoom + (e.wheelDelta > 0 ? 1 : -1));
+      var r = box.getBoundingClientRect();
+      setPointing(true);
+      setZoom(zoom + (e.wheelDelta > 0 ? 1 : -1), e.clientX - r.left, e.clientY - r.top);
       e.preventDefault();
+    }, false);
+    // The bubble under the pointer lights up and is described below.
+    markerLayer.addEventListener('mouseover', function (e) { hover(bubbleAt(e.target)); }, false);
+    markerLayer.addEventListener('mouseout', function (e) {
+      if (!bubbleAt(e.relatedTarget)) { hover(null); }
+    }, false);
+    // webOS hides the pointer when a key is pressed or it's left still: back to keys.
+    document.addEventListener('cursorStateChange', function (e) {
+      if (e.detail && e.detail.visibility === false) { setPointing(false); }
     }, false);
     box.addEventListener('click', function (e) {
       if (drag && drag.moved) { return; }
-      var t = e.target;
-      while (t && t !== box && !t.getAttribute('data-cluster')) { t = t.parentNode; }
-      if (t && t !== box) { open(clusters[parseInt(t.getAttribute('data-cluster'), 10)]); }
+      var t = bubbleAt(e.target);
+      if (t) { open(clusters[parseInt(t.getAttribute('data-cluster'), 10)]); }
     }, false);
     built = true;
+  }
+
+  function bubbleAt(t) {
+    while (t && t !== box && t.getAttribute && !t.getAttribute('data-cluster')) { t = t.parentNode; }
+    return t && t !== box && t.getAttribute ? t : null;
+  }
+
+  function hover(el) {
+    var c = el ? clusters[parseInt(el.getAttribute('data-cluster'), 10)] : null, list, i;
+    if (!pointing || c === hovered) { return; }
+    hovered = c;
+    list = markerLayer.childNodes;
+    for (i = 0; i < list.length; i++) { U.toggleClass(list[i], 'picked', list[i] === el); }
+    drawInfo();
+  }
+
+  function setPointing(on) {
+    if (pointing === on) { return; }
+    pointing = on;
+    hovered = null;
+    U.toggleClass(box, 'pointing', on);
+    if (markers) { render(); }
   }
 
   /* h: {load(cb(err, markers)), thumbUrl(id), tiles (base URL of the vector tiles),
@@ -121,9 +158,20 @@ var MapView = (function () {
     cy = Math.max(0.02, Math.min(0.98, cy));
   }
 
-  function setZoom(z) {
+  /* px, py (optional): the screen point to zoom toward, which stays put. */
+  function setZoom(z, px, py) {
+    var W = box.clientWidth, H = box.clientHeight, s0, s1;
     z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z));
-    if (z !== zoom) { zoom = z; render(); }
+    if (z === zoom) { return; }
+    if (px !== undefined) {
+      s0 = TILE * Math.pow(2, zoom);
+      s1 = TILE * Math.pow(2, z);
+      cx += (px - W / 2) / s0 - (px - W / 2) / s1;
+      cy += (py - H / 2) / s0 - (py - H / 2) / s1;
+      clamp();
+    }
+    zoom = z;
+    render();
   }
 
   function render() {
@@ -259,21 +307,28 @@ var MapView = (function () {
       d = Math.sqrt(Math.pow(c.x - W / 2, 2) + Math.pow(c.y - H / 2, 2));
       if (d < bestD) { bestD = d; best = c; }
     }
-    picked = best;
+    picked = pointing ? null : best;
+    hovered = null; // the bubbles are redrawn; the next pointer move finds it again
     for (i = 0; i < list.length; i++) {
       c = list[i];
       size = c.n > 99 ? 76 : (c.n > 9 ? 68 : 60);
-      html.push('<div class="map-bubble' + (c === best ? ' picked' : '') + '" data-cluster="' + i + '" style="left:' +
+      html.push('<div class="map-bubble' + (c === picked ? ' picked' : '') + '" data-cluster="' + i + '" style="left:' +
         Math.round(c.x - size / 2) + 'px;top:' + Math.round(c.y - size / 2) + 'px;width:' + size + 'px;height:' + size +
         'px"><img src="' + handlers.thumbUrl(c.cover) + '"><span>' + c.n + '</span></div>');
     }
     markerLayer.innerHTML = html.join('');
+    drawInfo();
+  }
 
+  function drawInfo() {
+    var c = pointing ? hovered : picked;
+    var how = pointing ? '     Click: open     Scroll: zoom     Drag: move' : '     OK: open     CH+/CH-: zoom     Arrows: move';
     if (!markers.length) {
       info.textContent = 'None of your photos have a location yet.';
-    } else if (best) {
-      info.textContent = best.n + (best.n === 1 ? ' photo' : ' photos') + (best.label ? ' around ' + best.label : '') +
-        '     OK: open     CH+/CH-: zoom     Arrows: move';
+    } else if (c) {
+      info.textContent = c.n + (c.n === 1 ? ' photo' : ' photos') + (c.label ? ' around ' + c.label : '') + how;
+    } else if (pointing) {
+      info.textContent = markers.length + ' photos with a location     Point at a bubble and click to open it     Scroll: zoom';
     } else {
       info.textContent = markers.length + ' photos with a location     OK: zoom in     CH+/CH-: zoom     Arrows: move';
     }
@@ -286,7 +341,9 @@ var MapView = (function () {
   }
 
   function open(c) {
-    if (!c) { return; }
+    var now = new Date().getTime();
+    if (!c || now - lastOpen < 600) { return; } // a remote click can also send OK
+    lastOpen = now;
     handlers.onOpen(c.ids, c.label || (c.n + ' photos'));
   }
 
@@ -302,6 +359,9 @@ var MapView = (function () {
      reach the tabs. */
   function key(k) {
     if (!markers) { return false; }
+    if (k === KEY.OK && pointing) { open(hovered); return true; } // the pointer's own click
+    if (k === KEY.LEFT || k === KEY.RIGHT || k === KEY.UP || k === KEY.DOWN || k === KEY.OK ||
+        k === KEY.CH_UP || k === KEY.CH_DOWN) { setPointing(false); }
     switch (k) {
       case KEY.LEFT: pan(-1, 0); return true;
       case KEY.RIGHT: pan(1, 0); return true;
