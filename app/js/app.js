@@ -17,8 +17,8 @@
     { key: 'favorites', label: 'Favorites', icon: 'heart' },
     { key: 'albums', label: 'Albums', icon: 'albums' },
     { key: 'slides', label: 'Slideshow', icon: 'slideshow' },
-    { key: 'settings', label: 'Settings', icon: 'settings' },
-    { key: 'account', label: 'Account', icon: 'user', bottom: true },
+    // Settings lives under your name at the bottom (the label becomes your name).
+    { key: 'settings', label: 'Settings', icon: 'settings', bottom: true },
     { key: 'signout', label: 'Sign out', icon: 'logout', bottom: true }
   ];
   var SHUFFLE_BATCH = 100;
@@ -487,7 +487,7 @@
 
   /* Shows your name on the sidebar's account entry. */
   function nameAccount(user) {
-    RAIL[railIndex('account')].el.lastChild.textContent = user && (user.name || user.email) || 'Account';
+    RAIL[railIndex('settings')].el.lastChild.textContent = user && (user.name || user.email) || 'Settings';
   }
 
   function setZone(z) {
@@ -529,7 +529,6 @@
 
   function openRail(key) {
     if (key === 'signout') { return signOut(); }
-    if (key === 'account') { key = 'settings'; }
     autoplayNext = false;
     stack = [rootView(key)];
     show(view(), 0);

@@ -76,7 +76,7 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
-| **Settings** | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
+| **Settings** (your name, at the bottom of the sidebar) | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
 | **Slideshow** | A page for leaving the TV running as a photo frame: a big photo over "Choose what to play" (all photos, favorites, memories, people, albums), with speed and shuffle. The remote's **Play** key also plays whatever is focused, anywhere |
 | **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
 | **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
