@@ -37,11 +37,9 @@ To check your version, open **Settings → All Settings → General → About Th
 
 ## Status: pre-alpha
 
-- Works in a desktop browser, tested against the dev server's fake library. It has **not been run on a TV yet**.
-- The target engine is confirmed: **Chrome 38**, read from a webOS 3.4.3 TV over root SSH. The code is strict ES5.
-- Next: package it as an IPK and run it on the first test TV (an LG UH7650). That run will also show whether the packaged app has trouble reaching immich, which sends no CORS headers. See [docs/PLAN.md](docs/PLAN.md).
-
-There's no download yet. When there is, it will be an IPK you install through the [webOS Homebrew Channel](https://www.webosbrew.org/) or developer mode.
+- Runs day to day on one TV so far: an LG UH7650 with webOS 3.4.3. Other webOS 3 and 4 sets should work but haven't been tried.
+- There's no download yet. For now you build the IPK yourself and install it in developer mode or on a rooted TV ([how](docs/DEVELOPMENT.md#on-a-tv)). A ready-made IPK for the [webOS Homebrew Channel](https://www.webosbrew.org/) comes later.
+- Known limit: videos filmed in portrait play sideways. The TV's video hardware ignores the rotation, so only a copy that immich has re-encoded upright plays the right way up (in immich: Administration → Settings → Video Transcoding → Transcode policy).
 
 ## Screenshots
 
@@ -52,7 +50,7 @@ There's no download yet. When there is, it will be an IPK you install through th
   </tr>
   <tr>
     <td><img src="docs/screenshots/slideshow.jpg" alt="Slideshow page with sources to play"><br><b>Slideshow</b>: leave the TV running as a photo frame</td>
-    <td><img src="docs/screenshots/map.jpg" alt="World map with photo bubbles"><br><b>Map</b>: your photos on OpenStreetMap, moved with the arrow keys</td>
+    <td><img src="docs/screenshots/map.jpg" alt="World map with photo bubbles"><br><b>Map</b>: where your photos were taken; point at a bubble to open it</td>
   </tr>
   <tr>
     <td><img src="docs/screenshots/albums.jpg" alt="Album covers in a grid"><br><b>Albums</b>: yours and the ones shared with you</td>
@@ -64,7 +62,7 @@ There's no download yet. When there is, it will be an IPK you install through th
   </tr>
 </table>
 
-The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by the dev server's fake library.
+The photos in the screenshots are stock images ([credits](docs/screenshots/CREDITS.md)).
 
 ## Features
 
@@ -72,7 +70,7 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 |---|---|
 | **Photos** | Your timeline, laid out like immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
 | **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
-| **Map** | Your photos on a dark map (immich's own map tiles, OpenStreetMap data), grouped into bubbles |
+| **Map** | Where your photos were taken, on a dark map like immich's, grouped into bubbles. No map key or sign-up needed |
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
@@ -124,71 +122,20 @@ Photos shared with you through immich's partner sharing (Account Settings → Pa
 | Details panel | Up/Down move between faces, rating, Add to album and Hide info bar (Down on the last row closes), Left/Right pick a face or change the stars, OK selects, Back closes. Left/Right don't change photos while it's open |
 | Map | Arrows move, CH+/CH- zoom, OK opens the bubble nearest the crosshair. With the Magic Remote the crosshair hides: point at a bubble and click it, scroll to zoom toward the pointer, drag to move |
 
-The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
+The Magic Remote pointer works everywhere too: point to focus, click to open.
 
 ## Under the hood
 
 - **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"), rooted, with the Homebrew Channel installed.
 - **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
 - **Server:** self-hosted immich v3, through its REST API.
-- **Map tiles** come from immich's own tile server (`tiles.immich.cloud`, OpenStreetMap data), the one immich's web app uses, so no key or sign-up is needed. They're vector tiles, which the app draws itself on the TV (`app/js/vtile.js`); on the TV they come through the app's relay, since that server refuses the packaged app's `null` origin. OpenStreetMap's own tile servers block TV apps (no Referer), and CARTO now wants a key.
-- **No build step:** the files in `app/` (the web app) and `service/` (the phone sign-in service) are what ships.
+- **Map:** the same map data immich's own web app uses (immich's free tile server, built from OpenStreetMap). The app draws it itself, since immich's map library is too new for the TV.
+- **No build step:** the files in `app/` (the web app) and `service/` (a small service on the TV for phone sign-in and for reaching immich) are what ships.
 - **QR codes** are drawn by [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), bundled unchanged as `app/lib/qrcode.js`.
 
 ## Development
 
-![Python 3](https://img.shields.io/badge/Python-3-3776ab?style=for-the-badge&logo=python&logoColor=3776ab&labelColor=ededed)
-![No build step](https://img.shields.io/badge/build%20step-none-43a047?style=for-the-badge&labelColor=ededed)
-
-`tools/devserver.py` serves the app and forwards `/api` to your immich server on the same origin, so CORS doesn't get in the way:
-
-```bash
-python tools/devserver.py --immich http://192.168.8.145:2283
-```
-
-Or with a fake library, no immich needed:
-
-```bash
-python tools/devserver.py --mock
-```
-
-Open `http://localhost:8000/` on this PC, or `http://<this-pc>:8000/` in the TV's web browser. Leave the server address as filled in and sign in (in mock mode any email and password work, except the password `wrong`). On a PC keyboard, Esc is Back and Enter is OK. The engine probe is at `/capabilities.html` on the same server.
-
-The mock's videos all play the same tiny 6-second clip (built by the dev server, no files needed), except December 2025's, which fail on purpose to show the "can't play" fallback.
-
-Phone sign-in works here too: the dev server offers the TV service's calls under `/pair/`, so the
-QR code on the PC's sign-in screen opens on a phone on the same Wi-Fi (Windows may ask to let Python
-through the firewall). The service's own tests run on the PC with Node:
-
-```bash
-node tools/test_pairing.js
-```
-
-Before committing JS, check it still parses as ES5:
-
-```bash
-for f in app/js/*.js service/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not ES5: $f"; done
-```
-
-### Screenshots
-
-The fake library can show real stock photos instead of coloured squares. Fetch them once (about 18 MB from [Lorem Picsum](https://picsum.photos), into the git-ignored `tools/stock/`; needs Pillow):
-
-```bash
-python tools/stock_photos.py
-```
-
-Then run the dev server with them, and take the screenshots in `docs/screenshots/` with headless Edge or Chrome (Node 22 or newer):
-
-```bash
-python tools/devserver.py --mock --photos tools/stock --port 8010
-```
-
-```bash
-node tools/screenshots.mjs
-```
-
-Pass shot names (`node tools/screenshots.mjs timeline albums`) to retake only some of them.
+Want to change the app or build it yourself? See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
 
 ## License
 
