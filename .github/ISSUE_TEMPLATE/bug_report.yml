@@ -1,0 +1,50 @@
+name: Something isn't working
+description: Report a problem with immich lite on your TV
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting! Please check the [known issues](https://github.com/cgbeaulieu/immich-lite/issues?q=is%3Aissue+is%3Aopen+label%3A%22known+issue%22) first.
+        Don't paste passwords, API keys or your server's public address here.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. A photo of the TV screen helps a lot.
+    validations:
+      required: true
+  - type: input
+    id: tv
+    attributes:
+      label: TV model
+      placeholder: LG 55UH7650
+    validations:
+      required: true
+  - type: input
+    id: webos
+    attributes:
+      label: webOS version
+      description: On the TV, Settings → All Settings → General → About This TV.
+      placeholder: 3.4.3
+    validations:
+      required: true
+  - type: input
+    id: app
+    attributes:
+      label: immich lite version
+      description: The release you installed.
+      placeholder: 0.2.0
+  - type: input
+    id: immich
+    attributes:
+      label: immich server version
+      placeholder: v3.3.1
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - Developer mode (ares-install or webOS Dev Manager)
+        - Rooted TV / Homebrew Channel
+        - Other

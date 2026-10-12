@@ -1,0 +1,42 @@
+name: Checks
+
+# Every push and pull request: the code must still parse as ES5 (the TV's engine is
+# Chrome 38), the phone sign-in and relay tests must pass, and the IPK must build.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: ES5 only
+        run: |
+          bad=0
+          for f in app/js/*.js service/*.js; do
+            npx -y acorn@8.14.0 --ecma5 --silent "$f" || { echo "::error file=$f::not ES5"; bad=1; }
+          done
+          exit $bad
+
+      - name: Phone sign-in tests
+        run: node tools/test_pairing.js
+
+      - name: Relay tests
+        run: |
+          python tools/devserver.py --mock --port 8012 &
+          for i in $(seq 1 30); do curl -s -o /dev/null http://127.0.0.1:8012/ && break; sleep 0.5; done
+          node tools/test_proxy.js
+
+      - name: Build the IPK
+        run: npx -y -p @webos-tools/cli ares-package app service -o dist

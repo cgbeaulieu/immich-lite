@@ -1,0 +1,11 @@
+name: Idea or request
+description: Something you'd like immich lite to do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like?
+      description: What you want to do on the TV, and why. If immich's web or phone app already does it, say where.
+    validations:
+      required: true

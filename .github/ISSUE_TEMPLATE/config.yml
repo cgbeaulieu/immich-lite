@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: TV runs webOS 5 or newer?
+    url: https://github.com/aneeshtigga/immich-webos
+    about: immich webOS is made for newer LG TVs. immich lite is for webOS 3 and 4.
+  - name: Problem with the immich server itself
+    url: https://github.com/immich-app/immich/discussions
+    about: Server setup, uploads, face recognition and so on belong with immich.

@@ -1,45 +1,85 @@
 <p align="center">
-  <img src="docs/logo.svg" alt="" width="96" height="96">
-</p>
-
-<h1 align="center">immich lite</h1>
-
-<p align="center">
-  Your <a href="https://immich.app">immich</a> photos and videos on older LG TVs, the ones current immich TV apps can't run on.
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/banner-dark.svg">
+    <img src="docs/banner-light.svg" alt="immich lite" width="460">
+  </picture>
 </p>
 
 <p align="center">
+  Your <a href="https://immich.app">immich</a> photos and videos on older LG TVs:<br>
+  the 2016–2019 sets that today's immich TV apps can't run on.
+</p>
+
+<p align="center">
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?style=for-the-badge&label=release&color=43a047&labelColor=ededed" alt="Latest release"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases"><img src="https://img.shields.io/github/downloads/cgbeaulieu/immich-lite/total?style=for-the-badge&label=downloads&color=5c6bc0&labelColor=ededed" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/webOS-3.x%20%E2%80%93%204.x-a50034?style=for-the-badge&labelColor=ededed" alt="webOS 3.x to 4.x">
-  <img src="https://img.shields.io/badge/engine-Chrome%2038%2C%20ES5-4285f4?style=for-the-badge&labelColor=ededed" alt="Engine: Chrome 38, ES5">
-  <img src="https://img.shields.io/badge/status-pre--alpha-f0a020?style=for-the-badge&labelColor=ededed" alt="Status: pre-alpha">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0-3f51b5?style=for-the-badge&labelColor=ededed" alt="License: MPL-2.0"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/cgbeaulieu/immich-lite/ci.yml?branch=main&style=for-the-badge&label=checks&labelColor=ededed" alt="Checks"></a>
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/timeline.jpg" alt="The photo timeline: photos at their own shape in justified rows, with the sidebar on the left" width="100%">
+  <img src="docs/hero.png" alt="immich lite on a TV: the photo timeline, with phone sign-in beside it" width="100%">
 </p>
 
-> Unofficial community client. Not affiliated with or endorsed by immich or FUTO.
+<p align="center">
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?style=for-the-badge&label=Download%20.ipk&logo=lg&logoColor=a50034&color=43a047&labelColor=ededed" alt="Download the latest .ipk"></a>
+</p>
 
-LG's 2016–2019 TVs still make good screens, but their built-in browser engine is too old for modern web apps. The webOS immich clients need webOS 5.0 or newer and show a black screen on anything older. immich lite is written for the oldest engine on purpose: plain ES5 JavaScript and CSS, no frameworks and no build step, so it runs on a 2016 set.
+> Unofficial community app. Not affiliated with or endorsed by immich or FUTO. "immich" is a trademark of its owners.
 
-Inspired by [immich webOS](https://github.com/aneeshtigga/immich-webos) by Aneesh Tigga. **If your TV runs webOS 5.0 or newer, use that instead.**
+LG's 2016–2019 TVs still make great screens, but their built-in web engine is too old for modern apps: the newer webOS immich clients need webOS 5 and show a black screen on anything older. immich lite is written for that old engine on purpose (plain JavaScript and CSS, no frameworks), so it runs smoothly on a TV from 2016.
 
-## Which app is right for your TV?
+**[Which app?](#which-app-for-your-tv)** · **[Install](#install)** · **[Features](#features)** · **[Screenshots](#screenshots)** · **[Signing in](#signing-in)** · **[Remote](#using-the-remote)** · **[Known issues](#known-issues)** · **[Troubleshooting](#troubleshooting)** · **[Privacy](#privacy-and-security)**
+
+## Which app for your TV?
 
 | Your TV | Use |
 |---|---|
-| webOS 3.x (2016–2017 models) | **immich lite** (this app) |
-| webOS 4.x (2018–2019 models) | **immich lite**. It should work, since webOS 4 has a newer engine (Chrome 53) than the one this app is written for, but it hasn't been tried yet |
-| webOS 5.0 and newer (2020 on) | [immich webOS](https://github.com/aneeshtigga/immich-webos), from the Homebrew Channel |
+| **webOS 3.x** (2016–2017) | **immich lite**. Tested on an LG UH7650 (webOS 3.4.3) |
+| **webOS 4.x** (2018–2019) | **immich lite**. Its engine is newer than the one this app targets, so it should work. [Tell us](https://github.com/cgbeaulieu/immich-lite/issues/new/choose) how it goes |
+| **webOS 5.0 and newer** (2020 on) | [immich webOS](https://github.com/aneeshtigga/immich-webos), made for newer TVs and the inspiration for this app |
 
-To check your version, open **Settings → All Settings → General → About This TV** on the TV.
+To check your version: **Settings → All Settings → General → About This TV**.
 
-## Status: pre-alpha
+## Install
 
-- Runs day to day on one TV so far: an LG UH7650 with webOS 3.4.3. Other webOS 3 and 4 sets should work but haven't been tried.
-- There's no download yet. For now you build the IPK yourself and install it in developer mode or on a rooted TV ([how](docs/DEVELOPMENT.md#on-a-tv)). A ready-made IPK for the [webOS Homebrew Channel](https://www.webosbrew.org/) comes later.
-- Known limit: videos filmed in portrait play sideways. The TV's video hardware ignores the rotation, so only a copy that immich has re-encoded upright plays the right way up (in immich: Administration → Settings → Video Transcoding → Transcode policy).
+**You need:** an [immich](https://immich.app) server the TV can reach on your network, and an LG TV with webOS 3 or 4.
+
+Download **[com.cgbeaulieu.immichlite.ipk](https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk)** from the latest release, then pick the way that fits your TV.
+
+### Developer mode (any TV, no rooting)
+
+1. On the TV, install LG's **Developer Mode** app from the LG Content Store, sign in with a free [LG developer account](https://webostv.developer.lge.com/), and turn on **Dev Mode Status** and **Key Server**.
+2. On your computer, install the IPK with **[webOS Dev Manager](https://github.com/webosbrew/dev-manager-desktop)** (point and click): add the TV, open *Apps*, and install the file.
+
+   Or with LG's command-line tools:
+   ```bash
+   npx -p @webos-tools/cli ares-setup-device      # add the TV once
+   npx -p @webos-tools/cli ares-install --device <your-tv> com.cgbeaulieu.immichlite.ipk
+   ```
+
+Developer mode switches itself off after about 50 hours unless you extend it in the Developer Mode app, and apps installed with it disappear when it does.
+
+### Rooted TV (Homebrew Channel)
+
+If your TV is rooted with the [webOS Homebrew Channel](https://www.webosbrew.org/), install the IPK with **webOS Dev Manager** as above. It stays installed for good. (immich lite isn't in the Homebrew Channel's app list yet.)
+
+**Updating:** install the newer IPK the same way. Your sign-in and settings are kept.
+
+## Features
+
+| | |
+|---|---|
+| **Photos** | Your timeline laid out like immich's web app: each photo at its own shape in justified rows, grouped by day or month. Videos show ▶ and their length, favorites a ♥, stacks (bursts, edits) a ⧉ count |
+| **Explore** | "On this day" memories, People, Places, and your Archive, Folders and Tags |
+| **Map** | Where your photos were taken, on a dark map like immich's, grouped into bubbles. Point and click with the Magic Remote |
+| **Favorites** | Photos you've starred, and star more with ▲ on the remote |
+| **Albums** | Your albums and the ones shared with you |
+| **Search** | immich's smart search: "beach", "dog in the snow" |
+| **Slideshow** | Turn the TV into a photo frame: all photos, favorites, memories, a person or an album, in order or shuffled, at your speed |
+| **Viewer** | Full screen photos and videos, with controls that fade away after a few seconds. ▼ opens the details: date, place, camera, the people in it, star rating and Add to album |
+| **Partners** | Photos your partners share with you show in your timeline, as on immich's web app |
+| **Settings** | Library statistics, slideshow speed and order, grouping, thumbnail size, hide videos, partner switches |
 
 ## Screenshots
 
@@ -58,85 +98,111 @@ To check your version, open **Settings → All Settings → General → About Th
   </tr>
   <tr>
     <td><img src="docs/screenshots/viewer.jpg" alt="A photo full screen"><br><b>Viewer</b>: full screen, with favorite, rating and slideshow on the remote</td>
-    <td><img src="docs/screenshots/signin.jpg" alt="Sign-in screen with a QR code for phone sign-in"><br><b>Sign in</b>: scan the QR code and sign in from your phone, or type it on the TV</td>
+    <td><img src="docs/screenshots/signin.jpg" alt="Sign-in screen with a QR code for phone sign-in"><br><b>Sign in</b>: scan the QR code and sign in from your phone</td>
   </tr>
 </table>
 
-The photos in the screenshots are stock images ([credits](docs/screenshots/CREDITS.md)).
-
-## Features
-
-| Tab | What it does |
-|---|---|
-| **Photos** | Your timeline, laid out like immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
-| **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
-| **Map** | Where your photos were taken, on a dark map like immich's, grouped into bubbles. No map key or sign-up needed |
-| **Favorites** | Photos you've starred |
-| **Albums** | Your albums and albums shared with you |
-| **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
-| **Settings** (your name, at the bottom of the sidebar) | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
-| **Slideshow** | A page for leaving the TV running as a photo frame: a big photo over "Choose what to play" (all photos, favorites, memories, people, albums), with speed and shuffle. The remote's **Play** key also plays whatever is focused, anywhere |
-| **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
-| **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
-
-**Not yet:** seeking within a video, multiple accounts.
+<sub>The photos in the screenshots are stock images ([credits](docs/screenshots/CREDITS.md)).</sub>
 
 ## Signing in
 
-<img src="docs/screenshots/phone.jpg" alt="The phone page that opens from the QR code, with the server address, email and password filled in" width="240" align="right">
+<img src="docs/screenshots/phone.jpg" alt="The phone page that opens from the QR code" width="220" align="right">
 
-**With your phone:** the sign-in screen shows a QR code. Scan it, type your immich address and
-email + password (or an API key) on the phone, and the TV signs in. The phone shows whether it
-worked. It's handled by a small service on the TV (`service/`, webOS's built-in Node 0.12) that
-listens on your home network only while the sign-in screen is up. It needs the code shown on the TV,
-gives up after several wrong codes, stops after 10 minutes, and never stores the password: the TV
-uses it once to sign in.
+**With your phone (easiest):** scan the QR code on the TV's sign-in screen. Your phone opens a page with the TV's code already filled in: type your immich address and your email and password (or an API key), and the TV signs itself in. No typing with the remote.
 
-**On the TV:** sign in with the **email and password** you use for immich, or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
+**On the TV:** type the address, email and password with the remote, or use an API key. The address field has **http://**, **https://** and **:2283** shortcuts.
+
+**Your server's address** is the one you'd type in a browser on the same Wi-Fi, like `http://192.168.1.10:2283`. Leaving out `http://` is fine.
 
 <br clear="right">
 
 <details>
-<summary><b>API key permissions</b></summary>
+<summary><b>Signing in with an API key</b></summary>
 
-Only for signing in with an API key; email and password sign-in has your account's full access. Create the key in immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
-`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read` (stacks),
-`folder.read` (Folders), `tag.read` (Tags), `partner.read` and `partner.update` (partner photos),
-`asset.statistics` and `server.storage` (library statistics in Settings; without them those lines are left out).
+Create the key in immich under **Account Settings → API Keys**. A key with **all permissions** is simplest. To limit it, the app needs:
+`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read`,
+`folder.read`, `tag.read`, `partner.read` and `partner.update` (partner photos),
+`asset.statistics` and `server.storage` (statistics in Settings; without them those lines are left out).
 
 </details>
 
-## Partner photos
+<details>
+<summary><b>Partner photos</b></summary>
 
-Photos shared with you through immich's partner sharing (Account Settings → Partner Sharing) show in Photos, Search and the map, the same as on immich's web app. immich only includes a partner whose **"Show in timeline"** switch is on. Settings lists your partners and has that switch for each one, so you can turn it on from the TV.
+Photos shared with you through immich's partner sharing (**Account Settings → Partner Sharing**) show in Photos, Search and the map. immich only includes a partner whose **Show in timeline** switch is on; Settings on the TV lists your partners and has that switch for each one.
 
-## Remote keys
+</details>
+
+## Using the remote
 
 | Where | Keys |
 |---|---|
-| Anywhere | Arrows move, OK opens, Back goes back, **Play** starts a slideshow of what's focused |
-| Sidebar | **Left** from the edge of a page (or Back on a top page) opens it; Up/Down pick, OK opens, Right goes back to the page |
-| Photo grids | CH+/CH- jump three rows |
-| Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, **▼ details panel**, **1-5 star rating** (0 clears it), CH+/CH- step through a stack |
-| On a video | OK, Play and Pause play and pause it (it starts by itself when opened from the grid). Left/Right stop it and move on |
-| Details panel | Up/Down move between faces, rating, Add to album and Hide info bar (Down on the last row closes), Left/Right pick a face or change the stars, OK selects, Back closes. Left/Right don't change photos while it's open |
-| Map | Arrows move, CH+/CH- zoom, OK opens the bubble nearest the crosshair. With the Magic Remote the crosshair hides: point at a bubble and click it, scroll to zoom toward the pointer, drag to move |
+| Anywhere | Arrows move, **OK** opens, **Back** goes back, **Play** starts a slideshow of what's focused |
+| Sidebar | **Left** from the edge of a page (or Back on a top page) opens it |
+| Photo grids | **CH+ / CH−** jump three rows |
+| Photo viewer | **◀ ▶** previous / next, **OK** slideshow on/off, **▲** favorite, **▼** details, **1–5** star rating (**0** clears), **CH+ / CH−** step through a stack |
+| Videos | **OK**, **Play** and **Pause** play and pause; **◀ ▶** move on |
+| Map | Arrows move, **CH+ / CH−** zoom, **OK** opens the bubble nearest the centre |
 
-The Magic Remote pointer works everywhere too: point to focus, click to open.
+**Magic Remote:** point and click anywhere. On the map, point at a bubble and click it, scroll to zoom, drag to move.
 
-## Under the hood
+## Known issues
 
-- **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"), rooted, with the Homebrew Channel installed.
-- **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
-- **Server:** self-hosted immich v3, through its REST API.
-- **Map:** the same map data immich's own web app uses (immich's free tile server, built from OpenStreetMap). The app draws it itself, since immich's map library is too new for the TV.
-- **No build step:** the files in `app/` (the web app) and `service/` (a small service on the TV for phone sign-in and for reaching immich) are what ships.
-- **QR codes** are drawn by [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), bundled unchanged as `app/lib/qrcode.js`.
+- **Portrait videos play sideways.** The TV's video hardware ignores the rotation in phone videos. immich can fix it by re-encoding them: see [#1](https://github.com/cgbeaulieu/immich-lite/issues/1).
+- **Not tried yet:** webOS 4 TVs, and installing in developer mode without root (the test TV is rooted). Reports either way are welcome.
+- No seeking inside a video yet, and one account at a time.
+
+All [known issues](https://github.com/cgbeaulieu/immich-lite/issues?q=is%3Aissue+is%3Aopen+label%3A%22known+issue%22) are labelled on the issue tracker.
+
+## Troubleshooting
+
+<details>
+<summary><b>"The TV can't find" my server</b></summary>
+
+The TV can't use names that only your computer knows, like Tailscale or other VPN names, or `.local` names. Use the server's IP address instead, like `http://192.168.1.10:2283`. You'll find it in your router's list of devices.
+</details>
+
+<details>
+<summary><b>"Couldn't reach" the server</b></summary>
+
+Check that the TV and the server are on the same network, and that immich opens in a browser at that address. `https://` with a self-signed certificate may be refused by the TV's old software, so plain `http://` on your home network is the safe choice.
+</details>
+
+<details>
+<summary><b>Search says it isn't working</b></summary>
+
+Smart search needs immich's machine learning. Right after you add a lot of photos, immich is still indexing them and search can fail for a while. Try again later, or check **Administration → Job Queues** in immich.
+</details>
+
+<details>
+<summary><b>The map is empty</b></summary>
+
+Bubbles only show for photos with a location. The map itself needs the TV to reach the internet, since it loads the same map immich's web app uses.
+</details>
+
+<details>
+<summary><b>The app vanished from the TV</b></summary>
+
+Developer mode ran out. Extend it in the Developer Mode app, or reinstall. See [Install](#developer-mode-any-tv-no-rooting).
+</details>
+
+## Privacy and security
+
+- **Your password is never stored.** The TV uses it once to sign in and keeps only immich's session token (or your API key), like immich's own apps.
+- **Phone sign-in stays on your home network.** A small service on the TV listens only while the sign-in screen is up, needs the code shown on the TV, locks after 8 wrong codes and stops after 10 minutes.
+- **Nothing goes anywhere but your immich server**, apart from the map, which loads from immich's map server like immich's web app does. No analytics, no accounts.
 
 ## Development
 
-Want to change the app or build it yourself? See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+Want to change the app or build it yourself? See [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md). Ideas and bug reports are welcome in [Issues](https://github.com/cgbeaulieu/immich-lite/issues/new/choose).
+
+## Thanks
+
+- [immich](https://immich.app), for the server, its API and its map.
+- [immich webOS](https://github.com/aneeshtigga/immich-webos) by Aneesh Tigga, the inspiration and the app to use on newer TVs.
+- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT), which draws the sign-in QR code.
+- The [webOS Homebrew](https://www.webosbrew.org/) community.
 
 ## License
 
-[Mozilla Public License 2.0](LICENSE) (MPL-2.0), except `app/lib/qrcode.js` (qrcode-generator, MIT license, Copyright (c) 2009 Kazuhiko Arase). The stock photos in the screenshots are under the [Unsplash License](https://unsplash.com/license); see [the credits](docs/screenshots/CREDITS.md).
+[Mozilla Public License 2.0](LICENSE), except `app/lib/qrcode.js` (MIT, Copyright (c) 2009 Kazuhiko Arase). The stock photos in the screenshots are under the [Unsplash License](https://unsplash.com/license).

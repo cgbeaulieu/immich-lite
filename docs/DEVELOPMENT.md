@@ -80,3 +80,32 @@ TV=root@192.168.1.50 TV_KEY=~/webos_key sh tools/tv_deploy.sh dist/com.cgbeaulie
 ```
 
 Bump the version in `app/appinfo.json` and `service/package.json` for each build.
+
+## Releasing
+
+Push a version tag. GitHub Actions (`.github/workflows/release.yml`) puts the version in
+`app/appinfo.json` and `service/package.json`, builds the IPK, and publishes a release with
+`com.cgbeaulieu.immichlite.ipk` (a fixed name, so the README's download link always gets the
+latest) and a Homebrew Channel manifest beside it:
+
+```bash
+git tag v0.2.0
+```
+
+```bash
+git push origin v0.2.0
+```
+
+Every push to `main` also runs `.github/workflows/ci.yml`: the ES5 check, both test suites and an
+IPK build.
+
+## README images
+
+After changing the look, retake the screenshots (above), then render the hero image (the timeline
+on a TV with phone sign-in beside it, `docs/hero.png`) from `tools/hero.html`:
+
+```bash
+sh tools/hero.sh
+```
+
+The banners are `docs/banner-dark.svg` and `docs/banner-light.svg`.

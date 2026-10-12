@@ -1,0 +1,75 @@
+name: Release
+
+# Push a tag like v1.2.3 to build the IPK and publish it as a GitHub release, with a
+# webOS Homebrew Channel manifest beside it.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Version from the tag
+        id: ver
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Put the version in the app and service
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          node -e "
+            var fs = require('fs');
+            ['app/appinfo.json', 'service/package.json'].forEach(function (f) {
+              var j = JSON.parse(fs.readFileSync(f, 'utf8'));
+              j.version = process.env.VERSION;
+              fs.writeFileSync(f, JSON.stringify(j, null, 2) + '\n');
+            });"
+
+      - name: ES5 only
+        run: for f in app/js/*.js service/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f"; done
+
+      - name: Build the IPK
+        run: |
+          npx -y -p @webos-tools/cli ares-package app service -o dist
+          mkdir -p release
+          cp dist/*.ipk release/com.cgbeaulieu.immichlite.ipk
+
+      - name: Homebrew Channel manifest
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+          REPO: ${{ github.repository }}
+        run: |
+          SHA256=$(sha256sum release/com.cgbeaulieu.immichlite.ipk | cut -d' ' -f1)
+          cat > release/com.cgbeaulieu.immichlite.manifest.json <<JSON
+          {
+            "id": "com.cgbeaulieu.immichlite",
+            "version": "$VERSION",
+            "type": "web",
+            "title": "immich lite",
+            "appDescription": "Your immich photos and videos on older LG TVs (webOS 3 and 4).",
+            "iconUri": "https://raw.githubusercontent.com/$REPO/main/app/largeIcon.png",
+            "sourceUrl": "https://github.com/$REPO",
+            "rootRequired": false,
+            "ipkUrl": "com.cgbeaulieu.immichlite.ipk",
+            "ipkHash": { "sha256": "$SHA256" }
+          }
+          JSON
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release/com.cgbeaulieu.immichlite.ipk
+            release/com.cgbeaulieu.immichlite.manifest.json
+          generate_release_notes: true
