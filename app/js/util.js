@@ -26,7 +26,7 @@ var U = {
 
   pad2: function (n) { return n < 10 ? '0' + n : String(n); },
 
-  /* The local calendar day ("2024-05-03") a photo was taken: Immich gives the UTC
+  /* The local calendar day ("2024-05-03") a photo was taken: immich gives the UTC
      time plus the offset of the place it was taken. */
   localDay: function (iso, offsetHours) {
     var t = iso ? Date.parse(iso) : NaN, d;
@@ -65,7 +65,7 @@ var U = {
     return a;
   },
 
-  /* Immich dates are ISO strings ("2024-05-03T12:00:00.000Z"). Slice them by
+  /* immich dates are ISO strings ("2024-05-03T12:00:00.000Z"). Slice them by
      hand: Date parsing and toLocaleDateString are unreliable on old engines. */
   fmtMonth: function (iso) {
     if (!iso || iso.length < 7) { return ''; }
@@ -88,7 +88,7 @@ U.fmtCount = function (n) {
   return (n < 0 ? '-' : '') + s + out;
 };
 
-/* Bytes -> "52.1 GB" (1024-based, like Immich shows it). */
+/* Bytes -> "52.1 GB" (1024-based, like immich shows it). */
 U.fmtBytes = function (n) {
   var units = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'], i = 0;
   n = n || 0;

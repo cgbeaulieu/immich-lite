@@ -1,4 +1,4 @@
-# Immich-Lite: architecture and plan
+# immich lite: architecture and plan
 
 ## Target engine (confirmed 2026-10-11)
 
@@ -17,8 +17,8 @@ What that means for the code:
 | IntersectionObserver | no (Chrome 51) | lazy loading worked out from `scrollTop` and row height |
 | CSS grid, custom properties | no | floats and absolute positioning |
 | flexbox, `object-fit`, `classList`, transforms | yes | used (with `-webkit-` prefixes kept for safety) |
-| WebP in `<img>` | yes | Immich's default webp thumbnails work |
-| `<video>` with H.264 MP4 | yes (hardware decoder, one at a time) | Immich's transcoded playback file; a video is unloaded (`removeAttribute('src')` + `load()`) as soon as it's left |
+| WebP in `<img>` | yes | immich's default webp thumbnails work |
+| `<video>` with H.264 MP4 | yes (hardware decoder, one at a time) | immich's transcoded playback file; a video is unloaded (`removeAttribute('src')` + `load()`) as soon as it's left |
 
 `capabilities.html` is still useful to run once in the TV browser to double-check, but it no longer blocks anything.
 
@@ -30,7 +30,7 @@ app/                 the webOS app (packaged as the IPK later)
   index.html
   css/app.css
   js/util.js         key codes, DOM helpers, localStorage wrapper
-  js/immich.js       Immich REST client (XHR)
+  js/immich.js       immich REST client (XHR)
   js/grid.js         focusable grid: packed sections (days, Explore rows), lazy images
   js/viewer.js       full-screen viewer, slideshow, favorite toggle
   js/details.js      the viewer's details panel: info, people, star rating, add to album
@@ -38,13 +38,13 @@ app/                 the webOS app (packaged as the IPK later)
   js/search.js       search page and recent searches
   js/map.js          remote-first photo map (OpenStreetMap tiles, clustered bubbles)
   js/app.js          views and the Back stack, tabs, sources, slideshow/shuffle, keys
-tools/devserver.py   serves app/ and proxies /api to Immich (or a mock library)
+tools/devserver.py   serves app/ and proxies /api to immich (or a mock library)
 capabilities.html    engine probe
 ```
 
 No build step. The files in `app/` are what ships.
 
-## Immich API (checked against server v3.3.1)
+## immich API (checked against server v3.3.1)
 
 | Need | Endpoint |
 |---|---|
@@ -66,15 +66,15 @@ More endpoints used for Explore, Search, Map and Favorites:
 | People | `GET /api/people?withHidden=false`, faces from `GET /api/people/{id}/thumbnail`, their photos via the timeline calls with `personId=...` |
 | Places | `GET /api/search/cities` (one cover photo per city), a city's photos via `POST /api/search/metadata {city}` |
 | Memories | `GET /api/memories?for=<now>` ("on this day", assets included) |
-| Search | `POST /api/search/smart {query, page}` (needs Immich's machine learning, which is on by default) |
+| Search | `POST /api/search/smart {query, page}` (needs immich's machine learning, which is on by default) |
 | Map | `GET /api/map/markers` (every located photo: id, lat, lon, city) |
 | Favorites | timeline calls with `isFavorite=true`; star with `PUT /api/assets {ids, isFavorite}` |
 | Shuffle | `POST /api/search/random` with the view's filter (`albumIds`, `personIds`, `tagIds`, `visibility`, `city`, `isFavorite`) |
 | Archive | timeline calls with `visibility=archive` (`asset.read`) |
 | Folders | `GET /api/view/folder/unique-paths` (every folder holding assets, as full paths; built into a tree in the app), a folder's own photos (not subfolders) from `GET /api/view/folder?path=...` as full asset objects, all at once (`folder.read`) |
 | Tags | `GET /api/tags` returns `[{id, name, value: 'Places/Canada', parentId}]` (`tag.read`), a tag's photos via the timeline calls with `tagId=...` |
-| Partner photos | timeline and map calls with `withPartners=true` (on by default). Immich only returns partners whose `inTimeline` is on, and refuses `withPartners` on the timeline unless `visibility=timeline` with no `isFavorite`/`isTrashed`, so only Photos and the map pass it. Settings lists `GET /api/partners?direction=shared-with` and flips `inTimeline` with `PUT /api/partners/{id}` (`partner.read`, `partner.update`). Search and random search already include partners shown in the timeline (server side) |
-| Stacks | timeline calls with `withStacked=true`, on Photos only (under any other filter Immich would hide a stack's other photos, so they could vanish from an album, person, favorites or tag view): only a stack's primary photo comes back, and the bucket gains a `stack` column, `[stackId, count]` (count as a string) or null. Members via `GET /api/stacks/{id}` (`{id, primaryAssetId, assets}`) |
+| Partner photos | timeline and map calls with `withPartners=true` (on by default). immich only returns partners whose `inTimeline` is on, and refuses `withPartners` on the timeline unless `visibility=timeline` with no `isFavorite`/`isTrashed`, so only Photos and the map pass it. Settings lists `GET /api/partners?direction=shared-with` and flips `inTimeline` with `PUT /api/partners/{id}` (`partner.read`, `partner.update`). Search and random search already include partners shown in the timeline (server side) |
+| Stacks | timeline calls with `withStacked=true`, on Photos only (under any other filter immich would hide a stack's other photos, so they could vanish from an album, person, favorites or tag view): only a stack's primary photo comes back, and the bucket gains a `stack` column, `[stackId, count]` (count as a string) or null. Members via `GET /api/stacks/{id}` (`{id, primaryAssetId, assets}`) |
 | Library statistics | `GET /api/assets/statistics` (`{images, videos, total}`, your own assets, timeline and archive), `quotaUsageInBytes` / `quotaSizeInBytes` from `GET /api/users/me`, `GET /api/server/storage` (server disk). None are admin-only; `/server/statistics` is, so it isn't used |
 | Photo details | `GET /api/assets/{id}`: `exifInfo` (camera, lens, exposure, place, `rating`) and `people` (id + name, enough for `/people/{id}/thumbnail`, so no `face.read` needed). Fetched 0.4 s after landing on a photo (not during a slideshow) so the caption can show the stars; the last 30 are cached |
 | Rating | `PUT /api/assets {ids, rating}`: 1-5, or `null` to clear (v3 rejects 0). Saves go out one at a time so quick presses land in order |
@@ -82,11 +82,11 @@ More endpoints used for Explore, Search, Map and Favorites:
 
 **API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `albumAsset.create`, `person.read`, `memory.read`, `map.read`, `stack.read`, `folder.read`, `tag.read`, `asset.statistics`, `server.storage`, `partner.read`, `partner.update`. A key with all permissions also works.
 
-Both `PUT /api/assets` and `PUT /api/assets/{id}` are marked deprecated in v3.3.1, with no replacement in that version yet. The app uses the bulk one (favorites and ratings); check this when Immich ships the replacement.
+Both `PUT /api/assets` and `PUT /api/assets/{id}` are marked deprecated in v3.3.1, with no replacement in that version yet. The app uses the bulk one (favorites and ratings); check this when immich ships the replacement.
 
 ## CORS: the open question
 
-The Immich server sends **no CORS headers** (checked on v3.3.1). Where that matters:
+The immich server sends **no CORS headers** (checked on v3.3.1). Where that matters:
 
 - **Images:** don't care. `<img>` loads cross-origin without CORS.
 - **JSON calls (XHR):** a cross-origin XHR response can't be read without `Access-Control-Allow-Origin`, *unless* the engine runs the app with web security relaxed.
@@ -96,7 +96,7 @@ How it plays out by way of running the app:
 1. **Dev server (desktop or TV browser):** same origin through the proxy, so CORS doesn't apply. Works today.
 2. **Packaged IPK (`file://` origin):** still unknown. Many older webOS releases are reported to let packaged web apps make cross-origin XHR calls. We test this the first time the IPK runs on the TV.
 3. **If the IPK is blocked**, in order of preference:
-   - a. Add CORS headers in front of Immich (a few lines in a reverse proxy on the server box). Simple, but it changes the server.
+   - a. Add CORS headers in front of immich (a few lines in a reverse proxy on the server box). Simple, but it changes the server.
    - b. Bundle a small webOS JS service in the IPK that does the HTTP calls (services aren't bound by CORS). Self-contained, more work.
    - c. Point the app at a small always-on proxy like `devserver.py`. Fine for testing, not for daily use.
 
@@ -106,9 +106,9 @@ How it plays out by way of running the app:
 
 1. **IPK packaging:** app icons (80x80 and 130x130 PNG), and a small script that builds the `.ipk` (an `ar` archive of `debian-binary`, `control.tar.gz` and `data.tar.gz`), so no webOS SDK is needed.
 2. **Install over root SSH** and launch on the TV. This needs a short window when nobody is watching. Then settle the CORS question above.
-3. Real-library performance: test against the full Immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
+3. Real-library performance: test against the full immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
 4. Check on the TV: OpenStreetMap tiles load over HTTPS (old TVs can lack newer root certificates), and whether the webOS screensaver interrupts long slideshows.
 5. Stacks collapse on the Photos timeline only (see the Stacks row above). Check that the ⧉ badge glyph renders in the TV's fonts.
-6. Check video on the TV: real Immich transcodes play (and 4K or HEVC originals that Immich didn't transcode fail cleanly to the still), the video draws above the still and below the bar, and stepping between videos never leaves the decoder stuck. Tested so far only in desktop Chromium against the mock.
+6. Check video on the TV: real immich transcodes play (and 4K or HEVC originals that immich didn't transcode fail cleanly to the still), the video draws above the still and below the bar, and stepping between videos never leaves the decoder stuck. Tested so far only in desktop Chromium against the mock.
 7. Check on the TV: the ★ and ☆ characters render in the TV's fonts (♥ already does, and they're in the same Unicode block), and the number keys on the LG remote send 48-57.
 8. Later: seeking in videos (Left/Right are taken by previous/next), "jump to year".

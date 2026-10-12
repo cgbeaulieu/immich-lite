@@ -4,8 +4,26 @@
     {
       "name": "immich-lite-mock",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["tools/devserver.py", "--mock", "--port", "8000"],
+      "runtimeArgs": [
+        "tools/devserver.py",
+        "--mock",
+        "--port",
+        "8000"
+      ],
       "port": 8000
+    },
+    {
+      "name": "immich-lite-photos",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "tools/devserver.py",
+        "--mock",
+        "--photos",
+        "tools/stock",
+        "--port",
+        "8010"
+      ],
+      "port": 8010
     }
   ]
 }

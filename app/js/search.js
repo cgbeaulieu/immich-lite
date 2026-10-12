@@ -1,4 +1,4 @@
-/* Search page: a search bar (Immich smart search), recent searches and ideas as pills.
+/* Search page: a search bar (immich smart search), recent searches and ideas as pills.
    Focus moves in rows: the bar, then each row of pills (Left/Right within a row). */
 var Search = (function () {
   'use strict';

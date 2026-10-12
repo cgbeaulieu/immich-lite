@@ -1,7 +1,7 @@
 /* Focusable thumbnail grid with titled sections and lazy image loading.
 
    Items are split into sections (a day in the timeline, "People" on Explore...).
-   Like Immich's web timeline, a section smaller than a row is packed beside its
+   Like immich's web timeline, a section smaller than a row is packed beside its
    neighbours instead of taking a whole row. Up/down navigation therefore works on
    screen rows (tiles sharing a top edge), picking the nearest tile by position.
 
@@ -106,7 +106,7 @@ var Grid = (function () {
     U.toggleClass(s.el, 'narrow', s.count < perRow);
   };
 
-  /* Photos keep their own shape, like Immich's timeline: tiles are added to a row at
+  /* Photos keep their own shape, like immich's timeline: tiles are added to a row at
      the target height until it would overflow, then the row is scaled down to fill the
      width exactly. A short last row stays at the target height, and a section that's
      only that row keeps its natural width so the next day can sit beside it. */

@@ -44,7 +44,7 @@ var Icons = (function () {
      which leaves the even gaps between petals. */
   var PETAL = 'M70 -18C40 -66 -40 -138 -125 -197C-140 -228 -112 -292 -9 -299C75 -305 134 -262 132 -205C128 -150 104 -84 70 -18Z';
 
-  /* The app's mark: Immich's five-petal pinwheel in white on our gradient. Each copy
+  /* The app's mark: immich's five-petal pinwheel in white on our gradient. Each copy
      gets its own gradient id: a copy on a hidden screen would otherwise own the
      shared one and leave the others unfilled. */
   function logo(cls) {

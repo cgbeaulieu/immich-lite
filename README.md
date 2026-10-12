@@ -1,39 +1,105 @@
-# Immich Lite for webOS
+<p align="center">
+  <img src="docs/logo.svg" alt="" width="96" height="96">
+</p>
 
-> Unofficial community client. Not affiliated with or endorsed by Immich or FUTO.
+<h1 align="center">immich lite</h1>
 
-A lightweight **Immich** photo/video client for **legacy LG webOS TVs** (webOS 3.x / 4.x) whose ancient web engine can't run the modern Immich TV clients (which require webOS 5.0+).
+<p align="center">
+  Your <a href="https://immich.app">immich</a> photos and videos on older LG TVs, the ones current immich TV apps can't run on.
+</p>
 
-Built for the wave of 2016-era LG TVs that still work fine as panels but have been abandoned by LG — and rooted via the webOS homebrew scene.
+<p align="center">
+  <img src="https://img.shields.io/badge/webOS-3.x%20%E2%80%93%204.x-a50034?style=for-the-badge&labelColor=ededed" alt="webOS 3.x to 4.x">
+  <img src="https://img.shields.io/badge/engine-Chrome%2038%2C%20ES5-4285f4?style=for-the-badge&labelColor=ededed" alt="Engine: Chrome 38, ES5">
+  <img src="https://img.shields.io/badge/status-pre--alpha-f0a020?style=for-the-badge&labelColor=ededed" alt="Status: pre-alpha">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MPL--2.0-3f51b5?style=for-the-badge&labelColor=ededed" alt="License: MPL-2.0"></a>
+</p>
 
-## Why
+<p align="center">
+  <img src="docs/screenshots/timeline.jpg" alt="The photo timeline: photos at their own shape in justified rows, with the sidebar on the left" width="100%">
+</p>
 
-The existing webOS Immich clients (`immichtv`, `immich.webos`) are modern web apps and **black-screen on webOS < 5.0** because the old Chromium/WebKit engine can't parse their JS/CSS. Immich-Lite targets the **oldest engine** deliberately: minimal, dependency-light, ES5-safe, so it runs where the others can't.
+> Unofficial community client. Not affiliated with or endorsed by immich or FUTO.
 
-## Status: 🌱 pre-alpha
+LG's 2016–2019 TVs still make good screens, but their built-in browser engine is too old for modern web apps. The webOS immich clients need webOS 5.0 or newer and show a black screen on anything older. immich lite is written for the oldest engine on purpose: plain ES5 JavaScript and CSS, no frameworks and no build step, so it runs on a 2016 set.
 
-- Target engine confirmed: **Chrome 38** (read from the TV over root SSH). The code is strict ES5.
-- Working in a browser (tested against a mock library), not yet run on the TV itself.
-- Not done yet: IPK packaging and the first run on the TV, which will show whether CORS blocks the packaged app. See [docs/PLAN.md](docs/PLAN.md).
+Inspired by [immich webOS](https://github.com/aneeshtigga/immich-webos) by Aneesh Tigga. **If your TV runs webOS 5.0 or newer, use that instead.**
+
+## Which app is right for your TV?
+
+| Your TV | Use |
+|---|---|
+| webOS 3.x (2016–2017 models) | **immich lite** (this app) |
+| webOS 4.x (2018–2019 models) | **immich lite**. It should work, since webOS 4 has a newer engine (Chrome 53) than the one this app is written for, but it hasn't been tried yet |
+| webOS 5.0 and newer (2020 on) | [immich webOS](https://github.com/aneeshtigga/immich-webos), from the Homebrew Channel |
+
+To check your version, open **Settings → All Settings → General → About This TV** on the TV.
+
+## Status: pre-alpha
+
+- Works in a desktop browser, tested against the dev server's fake library. It has **not been run on a TV yet**.
+- The target engine is confirmed: **Chrome 38**, read from a webOS 3.4.3 TV over root SSH. The code is strict ES5.
+- Next: package it as an IPK and run it on the first test TV (an LG UH7650). That run will also show whether the packaged app has trouble reaching immich, which sends no CORS headers. See [docs/PLAN.md](docs/PLAN.md).
+
+There's no download yet. When there is, it will be an IPK you install through the [webOS Homebrew Channel](https://www.webosbrew.org/) or developer mode.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/explore.jpg" alt="Explore: On this day memories and People"><br><b>Explore</b>: memories from this day in past years, and the people immich recognised</td>
+    <td width="50%"><img src="docs/screenshots/details.jpg" alt="Photo viewer with the details panel open"><br><b>Photo details</b>: date, place, the people in it, star rating and Add to album</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/slideshow.jpg" alt="Slideshow page with sources to play"><br><b>Slideshow</b>: leave the TV running as a photo frame</td>
+    <td><img src="docs/screenshots/map.jpg" alt="World map with photo bubbles"><br><b>Map</b>: your photos on OpenStreetMap, moved with the arrow keys</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/albums.jpg" alt="Album covers in a grid"><br><b>Albums</b>: yours and the ones shared with you</td>
+    <td><img src="docs/screenshots/search.jpg" alt="Search results for travel"><br><b>Search</b>: immich's smart search, so "travel" finds travel photos</td>
+  </tr>
+  <tr>
+    <td><img src="docs/screenshots/viewer.jpg" alt="A photo full screen"><br><b>Viewer</b>: full screen, with favorite, rating and slideshow on the remote</td>
+    <td><img src="docs/screenshots/signin.jpg" alt="Sign-in screen"><br><b>Sign in</b>: email and password, or an API key, with shortcuts for typing the address</td>
+  </tr>
+</table>
+
+The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by the dev server's fake library.
 
 ## Features
 
 | Tab | What it does |
 |---|---|
-| **Photos** | Your timeline, laid out like Immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
+| **Photos** | Your timeline, laid out like immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
 | **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
 | **Map** | Your photos on an OpenStreetMap map, grouped into bubbles |
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
-| **Search** | Immich smart search ("beach", "dog in the snow"), with recent searches |
+| **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
 | **Settings** | Library statistics (photo and video counts, storage used, server disk), slideshow speed and order, grouping, thumbnail size, hide videos, partner photos (on by default, with a Show/Hidden switch per partner), change server, sign out |
 | **Slideshow** | A page for leaving the TV running as a photo frame: a big photo over "Choose what to play" (all photos, favorites, memories, people, albums), with speed and shuffle. The remote's **Play** key also plays whatever is focused, anywhere |
 | **Videos** | Play full screen with a progress line and elapsed/total time; the grid shows their length. Slideshows skip them |
 | **Photo details** | In the photo viewer, ▼ opens a panel: date, place, camera and lens settings, size, the people in the photo (pick one to see their photos), star rating and Add to album |
 
+**Not yet:** seeking within a video, multiple accounts.
+
 ## Signing in
 
-Sign in with the **email and password** you use for Immich (easiest to type on a TV), or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
+Sign in with the **email and password** you use for immich (easiest to type on a TV), or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
+
+<details>
+<summary><b>API key permissions</b></summary>
+
+Only for signing in with an API key; email and password sign-in has your account's full access. Create the key in immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
+`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read` (stacks),
+`folder.read` (Folders), `tag.read` (Tags), `partner.read` and `partner.update` (partner photos),
+`asset.statistics` and `server.storage` (library statistics in Settings; without them those lines are left out).
+
+</details>
+
+## Partner photos
+
+Photos shared with you through immich's partner sharing (Account Settings → Partner Sharing) show in Photos, Search and the map, the same as on immich's web app. immich only includes a partner whose **"Show in timeline"** switch is on. Settings lists your partners and has that switch for each one, so you can turn it on from the TV.
 
 ## Remote keys
 
@@ -49,48 +115,34 @@ Sign in with the **email and password** you use for Immich (easiest to type on a
 
 The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
 
-## Partner photos
+## Under the hood
 
-Photos shared with you through Immich's partner sharing (Account Settings → Partner Sharing) show in Photos, Search and the map, the same as on Immich's web app. Immich only includes a partner whose **"Show in timeline"** switch is on. Settings lists your partners and has that switch for each one, so you can turn it on from the TV.
-
-## API key permissions
-
-Only for signing in with an API key; email and password sign-in has your account's full access. Create the key in Immich under Account Settings → API Keys. A key with **all permissions** is simplest. The app needs:
-`user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read` (stacks),
-`folder.read` (Folders), `tag.read` (Tags), `partner.read` and `partner.update` (partner photos),
-`asset.statistics` and `server.storage` (library statistics in Settings; without them those lines are left out).
-
-## Target / constraints
-
-- **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"). Rooted, Homebrew Channel installed.
-- **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid.
-- **Server:** self-hosted Immich v3 via its REST API. Immich sends no CORS headers; whether the packaged app needs them is still to be tested (see docs/PLAN.md).
-- **Install:** packaged as an IPK, sideloaded via Homebrew Channel / dev mode.
+- **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"), rooted, with the Homebrew Channel installed.
+- **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
+- **Server:** self-hosted immich v3, through its REST API.
 - **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
+- **No build step:** the files in `app/` are what ships.
 
-**Not yet:** seeking within a video, multiple accounts.
+## Development
 
-## Running it (development)
+![Python 3](https://img.shields.io/badge/Python-3-3776ab?style=for-the-badge&logo=python&logoColor=3776ab&labelColor=ededed)
+![No build step](https://img.shields.io/badge/build%20step-none-43a047?style=for-the-badge&labelColor=ededed)
 
-`tools/devserver.py` serves the app and forwards `/api` to your Immich server on the same origin, so CORS doesn't get in the way:
+`tools/devserver.py` serves the app and forwards `/api` to your immich server on the same origin, so CORS doesn't get in the way:
 
 ```bash
 python tools/devserver.py --immich http://192.168.8.145:2283
 ```
 
-Or with a fake library, no Immich needed:
+Or with a fake library, no immich needed:
 
 ```bash
 python tools/devserver.py --mock
 ```
 
+Open `http://localhost:8000/` on this PC, or `http://<this-pc>:8000/` in the TV's web browser. Leave the server address as filled in and sign in (in mock mode any email and password work, except the password `wrong`). On a PC keyboard, Esc is Back and Enter is OK. The engine probe is at `/capabilities.html` on the same server.
+
 The mock's videos all play the same tiny 6-second clip (built by the dev server, no files needed), except December 2025's, which fail on purpose to show the "can't play" fallback.
-
-Open `http://localhost:8000/` on this PC, or `http://192.168.8.101:8000/` in the TV's web browser. Leave the server address as filled in and sign in (in mock mode any email and password work, except the password `wrong`).
-
-On a PC keyboard, Esc is Back, and Enter is OK.
-
-The engine probe is at `/capabilities.html` on the same server.
 
 Before committing JS, check it still parses as ES5:
 
@@ -98,6 +150,26 @@ Before committing JS, check it still parses as ES5:
 for f in app/js/*.js; do npx -y acorn@8.14.0 --ecma5 --silent "$f" || echo "not ES5: $f"; done
 ```
 
+### Screenshots
+
+The fake library can show real stock photos instead of coloured squares. Fetch them once (about 18 MB from [Lorem Picsum](https://picsum.photos), into the git-ignored `tools/stock/`; needs Pillow):
+
+```bash
+python tools/stock_photos.py
+```
+
+Then run the dev server with them, and take the screenshots in `docs/screenshots/` with headless Edge or Chrome (Node 22 or newer):
+
+```bash
+python tools/devserver.py --mock --photos tools/stock --port 8010
+```
+
+```bash
+node tools/screenshots.mjs
+```
+
+Pass shot names (`node tools/screenshots.mjs timeline albums`) to retake only some of them.
+
 ## License
 
-[Mozilla Public License 2.0](LICENSE) (MPL-2.0).
+[Mozilla Public License 2.0](LICENSE) (MPL-2.0). The stock photos in the screenshots are under the [Unsplash License](https://unsplash.com/license); see [the credits](docs/screenshots/CREDITS.md).

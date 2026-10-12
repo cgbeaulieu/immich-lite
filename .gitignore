@@ -22,3 +22,6 @@ Thumbs.db
 
 # Claude Code agent worktrees
 .claude/worktrees/
+
+# Stock photos for README screenshots (tools/stock_photos.py)
+tools/stock/

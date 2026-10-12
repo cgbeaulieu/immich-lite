@@ -1,4 +1,4 @@
-/* Immich-Lite controller.
+/* immich lite controller.
 
    The browse screen shows one "view" at a time:
      assets   - a photo grid fed by a source (timeline, album, person, place, search...)
@@ -113,12 +113,12 @@
       { visibility: 'timeline' }, true);
   }
 
-  /* Immich only accepts withPartners on the plain timeline (visibility=timeline, no
+  /* immich only accepts withPartners on the plain timeline (visibility=timeline, no
      favorite or trash filter), which is what Photos asks for. /search/random has no
      withPartners, so shuffle keeps the filter above. */
   /* withStacked: a stack (burst shots, edits) shows as its primary photo only, with a
      count badge; the viewer steps through the rest with CH+/CH-. Only on Photos:
-     Immich hides a stack's other photos under any filter, so in an album, a person,
+     immich hides a stack's other photos under any filter, so in an album, a person,
      favorites or a tag a photo would vanish when its stack's primary isn't there too. */
   function photosFilter() {
     var f = { visibility: 'timeline', order: 'desc', withStacked: true };
@@ -185,7 +185,7 @@
         if (err) { return cb(err); }
         cb(null, [{ key: 'people', items: map(list, function (p) { return { kind: 'person', person: p }; }) }]);
       });
-    }, 'No people yet. Immich finds faces after photos are processed.');
+    }, 'No people yet. immich finds faces after photos are processed.');
   }
 
   function placesView() {
@@ -225,7 +225,7 @@
       client.memories(function (err, list) { if (err) { errors.push(err); } got.memories = list; done(); });
       client.people(function (err, list) { if (err) { errors.push(err); } got.people = list; done(); });
       client.places(function (err, list) { if (err) { errors.push(err); } got.places = list; done(); });
-    }, 'Nothing to explore yet. People, places and memories appear once Immich has processed your photos.');
+    }, 'Nothing to explore yet. People, places and memories appear once immich has processed your photos.');
   }
 
   // ---------- library: archive, folders, tags ----------
@@ -242,7 +242,7 @@
   function archiveView() {
     return assetView(view().tab, 'Archive',
       function () { return new TimelineSource({ visibility: 'archive', order: 'desc' }); },
-      { visibility: 'archive' }, true, 'No archived photos. Photos you archive in Immich show up here instead of in Photos.');
+      { visibility: 'archive' }, true, 'No archived photos. Photos you archive in immich show up here instead of in Photos.');
   }
 
   function tagsView() {
@@ -256,7 +256,7 @@
         });
         cb(null, [{ key: 'tags', items: map(list, function (t) { return { kind: 'tag', tag: t }; }) }]);
       });
-    }, 'No tags yet. Tags you add in Immich show up here.');
+    }, 'No tags yet. Tags you add in immich show up here.');
   }
 
   /* No visibility filter, like an album: a tag's archived photos show too. */
@@ -266,7 +266,7 @@
       { tagIds: [t.id] }, true, 'No photos with this tag');
   }
 
-  /* Immich lists every folder that holds photos as a flat list of paths. They become a
+  /* immich lists every folder that holds photos as a flat list of paths. They become a
      tree of {name, path, children, hasPhotos}. The top folders every path shares
      (e.g. /usr/src/app/upload/library) are skipped, so the first page shows real choices. */
   function folderTree(paths) {
@@ -385,7 +385,7 @@
 
   // ---------- rendering ----------
 
-  /* Like Immich's timeline: the photo at its own shape, "▶ 0:06" or a stack count in
+  /* Like immich's timeline: the photo at its own shape, "▶ 0:06" or a stack count in
      the top-right corner, a heart bottom-left for favorites. */
   function renderAsset(it) {
     var corner = [];
@@ -519,7 +519,7 @@
     }
   }
 
-  /* Thumbnail size sets the height of the justified photo rows. Immich's desktop web
+  /* Thumbnail size sets the height of the justified photo rows. immich's desktop web
      app uses ~235px; a TV is seen from across the room, so these run larger. */
   var ROW_HEIGHTS = { small: 240, medium: 320, large: 420, xlarge: 540 };
 
@@ -681,7 +681,7 @@
             cb([
               user.name || '',
               user.email || '',
-              c.server + (err2 || !ver ? '' : '   ·   Immich ' + ver.major + '.' + ver.minor + '.' + ver.patch) +
+              c.server + (err2 || !ver ? '' : '   ·   immich ' + ver.major + '.' + ver.minor + '.' + ver.patch) +
                 (c.token ? '   ·   signed in' : '   ·   API key')
             ], { name: user.name, email: user.email });
           });
@@ -708,9 +708,9 @@
               : 'Could not load partners: ' + err.message, []);
           }
           if (!list || !list.length) {
-            return cb('No partners share their photos with you. In Immich, they add you under Account Settings > Partner Sharing.', []);
+            return cb('No partners share their photos with you. In immich, they add you under Account Settings > Partner Sharing.', []);
           }
-          cb('A hidden partner\'s photos stay out of Photos, Search and the map. This is Immich\'s\n' +
+          cb('A hidden partner\'s photos stay out of Photos, Search and the map. This is immich\'s\n' +
             '"Show in timeline" setting, saved to your account.',
             map(list, partnerRow));
         });
@@ -823,7 +823,7 @@
 
     function images(list) { return list.filter(function (it) { return it.isImage; }); }
 
-    // Where shuffled photos come from: Immich's random search when the view has a
+    // Where shuffled photos come from: immich's random search when the view has a
     // filter for it, otherwise the view's own photos in a random order.
     function batch(cb) {
       if (target.random) { return c.randomPhotos(target.random, SHUFFLE_BATCH, cb); }
@@ -981,7 +981,7 @@
   // ---------- setup (sign-in) screen ----------
 
   function defaultServer() {
-    // Served by tools/devserver.py, which proxies /api to Immich on the same origin.
+    // Served by tools/devserver.py, which proxies /api to immich on the same origin.
     if (/^https?:$/.test(location.protocol)) { return location.protocol + '//' + location.host; }
     return '';
   }
@@ -1026,7 +1026,7 @@
       .concat([['connect']]);
   }
 
-  /* The address shortcuts: swap the http:// / https:// prefix, or add Immich's port. */
+  /* The address shortcuts: swap the http:// / https:// prefix, or add immich's port. */
   function applyChip(id) {
     var input = U.$('server'), v = input.value.trim(), host;
     if (id === 'chip-port') {
@@ -1037,13 +1037,13 @@
     }
   }
 
-  /* Immich sends no CORS headers, so a page served over http can't call it at another
+  /* immich sends no CORS headers, so a page served over http can't call it at another
      address. The dev server forwards /api on its own address instead. */
   function corsHint(server) {
     var here = defaultServer();
     if (!here || server.replace(/\/+$/, '').toLowerCase() === here.toLowerCase()) { return ''; }
-    return '. Immich blocks calls from other addresses, so use this page\'s address, ' + here +
-      ', as the server. The dev server passes requests on to Immich.';
+    return '. immich blocks calls from other addresses, so use this page\'s address, ' + here +
+      ', as the server. The dev server passes requests on to immich.';
   }
 
   function connect() {
@@ -1054,7 +1054,7 @@
     if (setupMode === 'login') {
       email = U.$('email').value.trim();
       password = U.$('password').value;
-      if (!email || !password) { return setupMsg('Enter the email and password you use for Immich.', true); }
+      if (!email || !password) { return setupMsg('Enter the email and password you use for immich.', true); }
       setupMsg('Signing in...');
       Immich.login(server, email, password, function (err, res) {
         if (err) { return failed(err); }
@@ -1065,7 +1065,7 @@
     }
 
     key = U.$('apikey').value.trim();
-    if (!key) { return setupMsg('Enter an API key. Create one in Immich: Account Settings > API Keys.', true); }
+    if (!key) { return setupMsg('Enter an API key. Create one in immich: Account Settings > API Keys.', true); }
     c = new Immich.Client(server, key);
     setupMsg('Connecting...');
     c.me(function (err) {

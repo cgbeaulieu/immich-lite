@@ -312,7 +312,7 @@ var Details = (function () {
     if (busy || !jobs.length) { return; }
     job = jobs.shift();
     busy = true;
-    // Immich v3 clears a rating with null (0 is no longer accepted).
+    // immich v3 clears a rating with null (0 is no longer accepted).
     job.c.setRating([job.it.id], job.n || null, function (err) {
       busy = false;
       if (err) {
@@ -341,7 +341,7 @@ var Details = (function () {
         return x < y ? 1 : (x > y ? -1 : 0);
       });
       picker.albums = list;
-      drawPicker(list.length ? '' : 'No albums yet. Create one in Immich first.');
+      drawPicker(list.length ? '' : 'No albums yet. Create one in immich first.');
     });
   }
 

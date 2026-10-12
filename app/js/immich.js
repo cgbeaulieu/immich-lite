@@ -1,8 +1,8 @@
-/* Immich REST client (checked against server v3.3.1). ES5 + XMLHttpRequest only.
+/* immich REST client (checked against server v3.3.1). ES5 + XMLHttpRequest only.
 
    The API key is sent as the ?apiKey= query parameter, not the x-api-key header.
    A custom header turns every call into a CORS preflight, and <img> tags can't
-   send headers at all. Immich accepts either (server/src/services/auth.service.ts).
+   send headers at all. immich accepts either (server/src/services/auth.service.ts).
 
    Assets are passed around the app as small objects:
    {id, isImage, isFavorite, date: 'YYYY-MM-DD' (local day it was taken),
@@ -13,7 +13,7 @@ var Immich = (function () {
   var PAGE_SIZE = 100;
 
   /* auth: an API key, or the access token from signing in with email and password
-     ({token: '...'}). A token is sent as ?sessionKey=, which Immich accepts the same
+     ({token: '...'}). A token is sent as ?sessionKey=, which immich accepts the same
      way as ?apiKey= (auth.service.ts), so <img> tags keep working. */
   function Client(server, apiKey, token) {
     this.server = String(server || '').replace(/\/+$/, '');
@@ -73,7 +73,7 @@ var Immich = (function () {
   Client.prototype.version = function (cb) { this.get('/server/version', null, cb); };
 
   /* Your own library: {images, videos, total} (needs asset.statistics). With no
-     visibility given, Immich counts the timeline and the archive, not the trash. */
+     visibility given, immich counts the timeline and the archive, not the trash. */
   Client.prototype.assetStats = function (cb) { this.get('/assets/statistics', null, cb); };
 
   /* The server's disk: {diskSizeRaw, diskUseRaw, diskUsagePercentage, ...}
@@ -156,9 +156,9 @@ var Immich = (function () {
     this.get('/map/markers', withPartners ? { withPartners: true } : null, cb);
   };
 
-  /* People who share their library with you: [{id, name, email, inTimeline}]. Immich
+  /* People who share their library with you: [{id, name, email, inTimeline}]. immich
      only mixes a partner's photos into your timeline (and search, map...) when
-     inTimeline is on, the "Show in timeline" switch in Immich's partner settings. */
+     inTimeline is on, the "Show in timeline" switch in immich's partner settings. */
   Client.prototype.partners = function (cb) { this.get('/partners', { direction: 'shared-with' }, cb); };
 
   Client.prototype.setPartnerInTimeline = function (id, on, cb) {
@@ -241,7 +241,7 @@ var Immich = (function () {
 
   // ---------- video ----------
 
-  /* The video for a <video> tag. Immich serves its transcoded copy here (H.264 MP4 by
+  /* The video for a <video> tag. immich serves its transcoded copy here (H.264 MP4 by
      default, which the TV decodes in hardware) and supports range requests for seeking. */
   Client.prototype.videoUrl = function (id) {
     return this.url('/assets/' + encodeURIComponent(id) + '/video/playback');

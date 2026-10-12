@@ -1,11 +1,12 @@
-"""Dev server for Immich-Lite.
+"""Dev server for immich lite.
 
-Serves app/ and forwards /api/* to an Immich server, so the app and the API share
+Serves app/ and forwards /api/* to an immich server, so the app and the API share
 one origin and CORS never comes into play. Use it from a desktop browser, or from
 the TV's own web browser (it listens on all interfaces).
 
     python tools/devserver.py --immich http://192.168.1.10:2283
-    python tools/devserver.py --mock          # fake library, no Immich needed
+    python tools/devserver.py --mock          # fake library, no immich needed
+    python tools/devserver.py --mock --photos tools/stock   # ...with real photos (tools/stock_photos.py)
 
 Then open http://<this-pc>:8000/ . The capability probe is at /capabilities.html.
 """
@@ -83,7 +84,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         except urllib.error.HTTPError as e:
             resp = e
         except OSError as e:
-            return self.send_json(502, {"message": "Dev server could not reach Immich: %s" % e})
+            return self.send_json(502, {"message": "Dev server could not reach immich: %s" % e})
         with resp:
             self.send_response(resp.status)
             for name, value in resp.headers.items():
@@ -113,6 +114,11 @@ class Server(http.server.ThreadingHTTPServer):
         super().server_bind()
 
 
+# Real photos for the mock, from --photos (a folder made by tools/stock_photos.py):
+# {"dir", "photos": [{"thumb", "preview", "ratio"}], "faces": [file per PEOPLE entry], "slot": {asset id: index}}.
+# None shows coloured squares instead.
+STOCK = None
+
 FAVORITES = {}  # asset id -> bool, set through PUT /api/assets while the mock runs
 RATINGS = {}    # asset id -> 1..5, -1 or None, set through PUT /api/assets
 # album id -> asset ids added through PUT /api/albums/{id}/assets. Each album already
@@ -124,7 +130,7 @@ PARTNERS = [{"id": "partner-user-1", "name": "Jane", "email": "jane@example.test
 
 
 class Mock:
-    """A small fake Immich library, shaped like the v3.3.1 API responses."""
+    """A small fake immich library, shaped like the v3.3.1 API responses."""
 
     MONTHS = ["2026-09", "2026-08", "2026-06", "2026-05", "2025-12", "2025-07"]
     ALBUMS = ["Summer 2026", "Hyrox race day", "Cabin weekend", "Birthdays", "Garden",
@@ -204,7 +210,7 @@ class Mock:
         if path == "/api/albums":
             return self.send([self.album(i) for i in range(len(self.ALBUMS))])
         if path.startswith("/api/timeline/") and self.partners_refused():
-            # Immich v3.3.1 (timeline.service.ts) refuses withPartners outside the plain timeline.
+            # immich v3.3.1 (timeline.service.ts) refuses withPartners outside the plain timeline.
             return self.h.send_json(400, {"message": "withPartners is only supported for non-archived, "
                                                      "non-trashed, non-favorited assets", "statusCode": 400})
         if path == "/api/timeline/buckets":
@@ -254,6 +260,8 @@ class Mock:
             return self.send({"people": people, "total": len(people), "hidden": 0, "hasNextPage": False})
         if path.startswith("/api/people/") and path.endswith("/thumbnail"):
             i = int(path.split("/")[3].split("-")[1])
+            if STOCK and i < len(STOCK["faces"]):
+                return self.jpeg(STOCK["faces"][i])
             return self.svg(180, 180, i * 47 % 360, self.PEOPLE[i][:1] or "?", 72)
         if path == "/api/search/cities":
             return self.send([{"id": "%s-0-%d" % (self.MONTHS[i % 6], i), "type": "IMAGE",
@@ -264,8 +272,11 @@ class Mock:
         if path == "/api/search/smart" and method == "POST":
             b = self.body()
             q = (b.get("query") or "").lower()
-            return self.page([a for a in self.all_assets()
-                              if int(hashlib.md5((q + a["id"]).encode()).hexdigest(), 16) % 4 == 0], b)
+            hits = [a for a in self.all_assets() if int(hashlib.md5((q + a["id"]).encode()).hexdigest(), 16) % 4 == 0]
+            if STOCK:  # the photos repeat across the library; show each once
+                seen = set()
+                hits = [a for a in hits if not (self.photo_of(a["id"])["thumb"] in seen or seen.add(self.photo_of(a["id"])["thumb"]))]
+            return self.page(hits, b)
         if path == "/api/memories":
             last_year = self.assets("2025-07")[:12]
             older = [{"id": "2023-10-0-%d" % i, "img": True, "fav": False,
@@ -295,6 +306,8 @@ class Mock:
             return self.send([self.tag(i) for i in range(len(self.TAGS))])
         if path.startswith("/api/assets/") and path.endswith("/thumbnail"):
             asset_id, big = path.split("/")[3], self.arg("size") == "preview"
+            if STOCK:
+                return self.jpeg(self.photo_of(asset_id)["preview" if big else "thumb"])
             return self.svg(1440 if big else 250, 960 if big else 250,
                             int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 64 if big else 22)
         if path.startswith("/api/assets/") and path.endswith("/video/playback"):
@@ -378,7 +391,7 @@ class Mock:
 
     # ----- library: archive, folders, tags, partners -----
 
-    # Paths as Immich stores them; the shared /usr/src/app/upload/library/admin prefix
+    # Paths as immich stores them; the shared /usr/src/app/upload/library/admin prefix
     # is what the app's folder tree skips. 2024 holds photos and subfolders.
     FOLDERS = ["/usr/src/app/upload/library/admin/2024",
                "/usr/src/app/upload/library/admin/2024/2024-05 Banff",
@@ -405,7 +418,7 @@ class Mock:
         return out
 
     def partner_assets(self, month):
-        # Like Immich: only partners you show in your timeline contribute photos.
+        # Like immich: only partners you show in your timeline contribute photos.
         if month not in self.MONTHS[:3] or not any(p["inTimeline"] for p in PARTNERS):
             return []
         return [{"id": "partner-%s-%d" % (month, i), "img": True, "fav": False,
@@ -453,7 +466,7 @@ class Mock:
             "livePhotoVideoId": [None] * n, "localOffsetHours": [0] * n, "ownerId": ["mock-user"] * n,
             "projectionType": [None] * n, "thumbhash": [None] * n, "visibility": ["timeline"] * n,
         }
-        if stacked:  # Immich only sends this column with withStacked=true
+        if stacked:  # immich only sends this column with withStacked=true
             cols["stack"] = [a.get("stack") for a in items]
         return cols
 
@@ -462,7 +475,33 @@ class Mock:
 
     @classmethod
     def ratio_of(cls, asset_id):
+        if STOCK:
+            return cls.photo_of(asset_id)["ratio"]
         return cls.RATIOS[int(hashlib.md5(("ratio" + asset_id).encode()).hexdigest(), 16) % len(cls.RATIOS)]
+
+    @staticmethod
+    def photo_of(asset_id):
+        """The stock photo an asset shows: the timeline takes them in turn, so neighbours
+        differ; a stack's photos all show its first one, like burst shots. Anything else
+        (partners, archive, memories) picks one by hash."""
+        if not STOCK["slot"]:
+            lib, n = Mock.__new__(Mock), len(STOCK["photos"])
+            for a in lib.all_assets():
+                if a["id"] not in STOCK["slot"]:
+                    STOCK["slot"][a["id"]] = len(STOCK["slot"]) % n
+            for a in lib.all_assets():
+                if a.get("stack_of"):
+                    STOCK["slot"][a["id"]] = STOCK["slot"][a["stack_of"][len("stack-"):]]
+            covers = set()  # album covers sit side by side, so give each its own photo
+            for i in range(len(Mock.ALBUMS)):
+                cover = "%s-0-%d" % (Mock.MONTHS[i % 6], i)
+                while STOCK["slot"][cover] in covers:
+                    STOCK["slot"][cover] = (STOCK["slot"][cover] + 1) % n
+                covers.add(STOCK["slot"][cover])
+        i = STOCK["slot"].get(asset_id)
+        if i is None:
+            i = int(hashlib.md5(("stock" + asset_id).encode()).hexdigest(), 16) % len(STOCK["photos"])
+        return STOCK["photos"][i]
 
     @staticmethod
     def dto(a):
@@ -503,6 +542,9 @@ class Mock:
         taken = "%04d-%02d-%02dT%02d:%02d:00.000Z" % (year, mon, day, 7 + h % 14, h // 14 % 60)
         make, model, lens = self.CAMERAS[h % len(self.CAMERAS)]
         w, ht = [(4032, 3024), (6000, 4000), (3024, 4032)][h // 5 % 3]
+        if STOCK:  # the real photo's shape
+            r = self.ratio_of(asset_id)
+            w, ht = (4032, int(round(4032 / r))) if r >= 1 else (int(round(4032 * r)), 4032)
         c = self.city_of(asset_id)
         people = sorted({(h >> (8 + 4 * j)) % len(self.PEOPLE) for j in range(h // 7 % 4)})
         exif = {
@@ -541,6 +583,15 @@ class Mock:
                 "updatedAt": "2026-%02d-01T00:00:00.000Z" % (10 - i % 9),
                 "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9),
                 "shared": i in (1, 4)}
+
+    def jpeg(self, name):
+        with open(os.path.join(STOCK["dir"], name), "rb") as f:
+            raw = f.read()
+        self.h.send_response(200)
+        self.h.send_header("Content-Type", "image/jpeg")
+        self.h.send_header("Content-Length", str(len(raw)))
+        self.h.end_headers()
+        self.h.wfile.write(raw)
 
     def svg(self, w, h, hue, text, font_size):
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d">'
@@ -659,14 +710,23 @@ def _build_mp4(w, h):
 
 
 def main():
-    p = argparse.ArgumentParser(description="Serve Immich-Lite and proxy /api to Immich.")
+    p = argparse.ArgumentParser(description="Serve immich lite and proxy /api to immich.")
     p.add_argument("--immich", default=os.environ.get("IMMICH_URL", ""),
-                   help="Immich server, e.g. http://192.168.1.10:2283 (or set IMMICH_URL)")
+                   help="immich server, e.g. http://192.168.1.10:2283 (or set IMMICH_URL)")
     p.add_argument("--mock", action="store_true", help="serve a fake library instead of proxying")
+    p.add_argument("--photos", metavar="DIR",
+                   help="with --mock, show real photos from a folder made by tools/stock_photos.py")
     p.add_argument("--port", type=int, default=8000)
     args = p.parse_args()
     if not args.mock and not args.immich:
         p.error("give --immich URL (or IMMICH_URL), or use --mock")
+    if args.photos:
+        global STOCK
+        try:
+            with open(os.path.join(args.photos, "manifest.json")) as f:
+                STOCK = dict(json.load(f), dir=args.photos, slot={})
+        except OSError as e:
+            p.error("no photos in %s (%s). Run python tools/stock_photos.py first" % (args.photos, e))
 
     Handler.upstream = args.immich.rstrip("/")
     Handler.mock = args.mock
@@ -674,7 +734,7 @@ def main():
         server = Server(("0.0.0.0", args.port), Handler)
     except OSError as e:
         p.exit(1, "Port %d is not free (%s). Is another dev server already running?\n" % (args.port, e))
-    print("Immich-Lite dev server on http://0.0.0.0:%d/  (%s)"
+    print("immich lite dev server on http://0.0.0.0:%d/  (%s)"
           % (args.port, "mock library" if args.mock else "proxying /api to " + Handler.upstream))
     try:
         server.serve_forever()
