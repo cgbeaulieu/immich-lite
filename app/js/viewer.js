@@ -5,6 +5,7 @@ var Viewer = (function () {
   var root, img, bar, caption, hint, status, toastEl, progress;
   var okLabel = 'Slideshow';
   var opts = null, index = 0, playing = false, timer = null, toastTimer = null, preload = null;
+  var photoToken = 0, arrows = {};
 
   function init() {
     root = U.$('viewer');
@@ -15,13 +16,8 @@ var Viewer = (function () {
     status = U.$('viewer-status');
     toastEl = U.$('viewer-toast');
     progress = U.$('viewer-progress-fill');
-    img.onload = function () { U.removeClass(img, 'loading'); schedule(); };
-    img.onerror = function () {
-      U.removeClass(img, 'loading');
-      if (opts) { status.textContent = 'Could not load this photo'; }
-      schedule();
-    };
     root.onclick = function () { next(); }; // Magic Remote click
+    initArrows();
     initStack();
     initVideo();
     Details.init(root, toastEl, {
@@ -53,6 +49,7 @@ var Viewer = (function () {
     Details.close(true);
     setPlaying(false, true);
     U.hide(toastEl);
+    photoToken++;
     img.src = Grid.BLANK;
     stopVideo();
     U.hide(root);
@@ -84,12 +81,70 @@ var Viewer = (function () {
     if (!it.isImage) { showVideo(it); }
     drawCaption();
     Details.photo(it, playing);
-    U.addClass(img, 'loading');
-    img.src = opts.urlFor(it);
+    drawArrows();
+    loadPhoto(opts.urlFor(it));
     if (items[i + 1]) {
       preload = new Image();
       preload.src = opts.urlFor(items[i + 1]);
     }
+  }
+
+  /* Loads the photo off screen, then shows it already sized to its own shape. Swapping
+     the src of the visible <img> made the old engine draw the new photo stretched to
+     the old size (or the full screen) for a moment before it fit. */
+  function loadPhoto(src) {
+    var t = ++photoToken, pre = new Image();
+    U.addClass(img, 'loading');
+    pre.onload = function () {
+      if (t !== photoToken) { return; } // moved on meanwhile
+      fitPhoto(pre.naturalWidth, pre.naturalHeight);
+      img.src = src; // cached now, so it appears at once
+      U.removeClass(img, 'loading');
+      schedule();
+    };
+    pre.onerror = function () {
+      if (t !== photoToken) { return; }
+      U.removeClass(img, 'loading');
+      if (opts) { status.textContent = 'Could not load this photo'; }
+      schedule();
+    };
+    pre.src = src;
+  }
+
+  /* Fits w x h into the screen, centred, keeping its shape. */
+  function fitPhoto(w, h) {
+    var W = root.clientWidth, H = root.clientHeight, scale, dw, dh, st = img.style;
+    if (!w || !h) { w = W; h = H; }
+    scale = Math.min(W / w, H / h);
+    dw = Math.round(w * scale);
+    dh = Math.round(h * scale);
+    st.width = dw + 'px';
+    st.height = dh + 'px';
+    st.left = Math.round((W - dw) / 2) + 'px';
+    st.top = Math.round((H - dh) / 2) + 'px';
+  }
+
+  /* Previous / next arrows at the edges. They show and hide with the info bar (CSS),
+     and the Magic Remote can click them. */
+  function initArrows() {
+    var names = ['prev', 'next'], i;
+    for (i = 0; i < names.length; i++) {
+      (function (name) {
+        var a = document.createElement('div');
+        a.className = 'v-arrow ' + name;
+        a.innerHTML = Icons.svg('chevron');
+        a.onclick = function (e) {
+          if (e && e.stopPropagation) { e.stopPropagation(); } // not also the viewer's click
+          if (name === 'prev') { prev(); } else { next(); }
+        };
+        root.appendChild(a); // after the bar, so '#viewer-bar.hidden ~ .v-arrow' hides them
+        arrows[name] = a;
+      })(names[i]);
+    }
+  }
+
+  function drawArrows() {
+    U.toggleClass(arrows.prev, 'hidden', !opts || index === 0);
   }
 
   /* Bottom-left: the date big, then favorite, stars, position and stack on one line. */
@@ -115,7 +170,7 @@ var Viewer = (function () {
 
   /* Bottom-right: what the keys do, as keycaps. */
   function renderHint() {
-    var list = [['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
+    var list = [['◀ ▶', 'Browse'], ['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
     if (stackItem) { list.push(['CH', 'Stack']); }
     hint.innerHTML = '';
     for (i = 0; i < list.length; i++) {
@@ -229,8 +284,7 @@ var Viewer = (function () {
     m = stackList[stackPos];
     status.textContent = m.isImage ? '' : 'A video in this stack, shown as a still';
     drawStack();
-    U.addClass(img, 'loading');
-    img.src = opts.urlFor(m);
+    loadPhoto(opts.urlFor(m));
     return true;
   }
 
@@ -295,6 +349,7 @@ var Viewer = (function () {
     vinfo.appendChild(line);
     bar.insertBefore(vinfo, bar.firstChild);
 
+    video.addEventListener('loadedmetadata', function () { turnVideo(); }, false); // frame size known now
     video.addEventListener('playing', function () {
       if (videoItem) { U.show(video); status.textContent = ''; }
     }, false);
@@ -311,9 +366,49 @@ var Viewer = (function () {
 
   function showVideo(it) {
     videoItem = it;
+    videoTurn = null;
     U.show(vinfo);
     drawVideoTime();
     drawVideoHint();
+    findVideoTurn(it);
+  }
+
+  /* Phones record portrait video as landscape frames plus a rotation flag, and the
+     TV's engine ignores the flag, so the video plays sideways. immich reports the
+     rotation as an EXIF orientation ('6' = turn 90 clockwise, '8' = 90 the other way,
+     '3' = 180); the video is turned in CSS to match. */
+  var videoTurn = null;
+
+  function findVideoTurn(it) {
+    var c = opts && opts.client;
+    if (!c || !c.asset) { return; }
+    c.asset(it.id, function (err, a) {
+      var o = !err && a && a.exifInfo && String(a.exifInfo.orientation || '');
+      if (videoItem !== it) { return; }
+      videoTurn = o === '6' || o === '90' ? 90 : (o === '8' || o === '-90' || o === '270' ? -90 : (o === '3' || o === '180' ? 180 : 0));
+      turnVideo();
+    });
+  }
+
+  /* Only when the TV really decoded it sideways (a landscape frame for a turned video):
+     videos immich has already re-encoded upright are left alone. */
+  function turnVideo() {
+    var st = video.style, W = root.clientWidth, H = root.clientHeight, deg = videoTurn || 0, sideways;
+    sideways = video.videoWidth > video.videoHeight;
+    if (!videoItem || !video.videoWidth || !(deg === 180 || (deg && sideways))) { return unturnVideo(); }
+    if (deg === 180) {
+      st.width = W + 'px'; st.height = H + 'px'; st.left = '0'; st.top = '0';
+    } else { // a box the other way round, turned into place
+      st.width = H + 'px'; st.height = W + 'px';
+      st.left = Math.round((W - H) / 2) + 'px'; st.top = Math.round((H - W) / 2) + 'px';
+    }
+    st.webkitTransform = st.transform = 'rotate(' + deg + 'deg)';
+  }
+
+  function unturnVideo() {
+    var st = video.style;
+    st.width = st.height = st.left = st.top = '';
+    st.webkitTransform = st.transform = '';
   }
 
   function playVideo() {
@@ -336,6 +431,8 @@ var Viewer = (function () {
   function stopVideo() {
     var was = !!videoItem;
     videoItem = null;
+    videoTurn = null;
+    unturnVideo();
     unloadVideo();
     U.hide(video);
     U.hide(vinfo);

@@ -156,7 +156,17 @@
 
   function searchView(q) {
     return assetView('search', q,
-      function () { return new PagedSource(function (page, cb) { client.searchSmart(q, page, cb); }); },
+      function () {
+        return new PagedSource(function (page, cb) {
+          client.searchSmart(q, page, function (err, items, next) {
+            // immich answers 500 while its machine learning is still busy (e.g. a big import).
+            if (err && err.status >= 500) {
+              err.message = 'Smart search isn’t ready. immich may still be processing your photos; try again later (' + err.status + ')';
+            }
+            cb(err, items, next);
+          });
+        });
+      },
       null, false, 'Nothing found for “' + q + '”');
   }
 

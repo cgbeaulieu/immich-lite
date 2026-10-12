@@ -60,7 +60,7 @@ There's no download yet. When there is, it will be an IPK you install through th
   </tr>
   <tr>
     <td><img src="docs/screenshots/viewer.jpg" alt="A photo full screen"><br><b>Viewer</b>: full screen, with favorite, rating and slideshow on the remote</td>
-    <td><img src="docs/screenshots/signin.jpg" alt="Sign-in screen"><br><b>Sign in</b>: email and password, or an API key, with shortcuts for typing the address</td>
+    <td><img src="docs/screenshots/signin.jpg" alt="Sign-in screen with a QR code for phone sign-in"><br><b>Sign in</b>: scan the QR code and sign in from your phone, or type it on the TV</td>
   </tr>
 </table>
 
@@ -72,7 +72,7 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 |---|---|
 | **Photos** | Your timeline, laid out like immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
 | **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
-| **Map** | Your photos on an OpenStreetMap map, grouped into bubbles |
+| **Map** | Your photos on a dark map (CARTO tiles, OpenStreetMap data), grouped into bubbles |
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
@@ -85,6 +85,8 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 
 ## Signing in
 
+<img src="docs/screenshots/phone.jpg" alt="The phone page that opens from the QR code, with the server address, email and password filled in" width="240" align="right">
+
 **With your phone:** the sign-in screen shows a QR code. Scan it, type your immich address and
 email + password (or an API key) on the phone, and the TV signs in. The phone shows whether it
 worked. It's handled by a small service on the TV (`service/`, webOS's built-in Node 0.12) that
@@ -93,6 +95,8 @@ gives up after several wrong codes, stops after 10 minutes, and never stores the
 uses it once to sign in.
 
 **On the TV:** sign in with the **email and password** you use for immich, or with an **API key**. The address has **http://**, **https://** and **:2283** shortcuts. The app keeps the session token or key, never the password. When a session ends, it asks you to sign in again.
+
+<br clear="right">
 
 <details>
 <summary><b>API key permissions</b></summary>
@@ -127,7 +131,7 @@ The Magic Remote pointer works too: point to focus, click to open, and on the ma
 - **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"), rooted, with the Homebrew Channel installed.
 - **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
 - **Server:** self-hosted immich v3, through its REST API.
-- **Map tiles** come from OpenStreetMap over the internet (fine for personal use; credit shown on the map).
+- **Map tiles** come from [CARTO](https://carto.com/basemaps) (OpenStreetMap data) over the internet, free for personal use with the credit shown on the map. OpenStreetMap's own tile servers block TV apps, which can't send a Referer.
 - **No build step:** the files in `app/` (the web app) and `service/` (the phone sign-in service) are what ships.
 - **QR codes** are drawn by [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), bundled unchanged as `app/lib/qrcode.js`.
 

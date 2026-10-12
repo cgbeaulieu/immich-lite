@@ -222,16 +222,23 @@ var Grid = (function () {
 
   /* Rebuilds the screen rows: runs of tiles with the same top edge. Tiles flow in
      order, so their tops never go back up. */
+  /* Positions are read here, once per layout (new photos, a new screen size), and kept
+     in this.geo. Reading offsetTop after a focus change makes the old engine lay out the
+     whole grid again, which made every key press slow on a big library. */
   Grid.prototype.layout = function () {
-    var top = null, row = null, i, t;
+    var top = null, row = null, i, el, g;
     this.rows = [];
     this.rowOf = [];
+    this.geo = [];
+    for (i = 0; i < this.sections.length; i++) { this.sections[i].top = this.sections[i].el.offsetTop; }
     for (i = 0; i < this.tiles.length; i++) {
-      t = this.tiles[i].offsetTop;
-      if (t !== top) {
-        row = { start: i, end: i + 1, top: t, bottom: t + this.tiles[i].offsetHeight };
+      el = this.tiles[i];
+      g = { top: el.offsetTop, left: el.offsetLeft, w: el.offsetWidth, h: el.offsetHeight };
+      this.geo.push(g);
+      if (g.top !== top) {
+        row = { start: i, end: i + 1, top: g.top, bottom: g.top + g.h };
         this.rows.push(row);
-        top = t;
+        top = g.top;
       } else {
         row.end = i + 1;
       }
@@ -250,7 +257,7 @@ var Grid = (function () {
   };
 
   Grid.prototype.hydrate = function () {
-    var h = this.box.clientHeight, top = this.box.scrollTop, r, i, img, src, k, t, lastTile;
+    var h = this.box.clientHeight, top = this.box.scrollTop, r, i, img, src, k, y, last;
     var from = top - h * LOAD_SCREENS, to = top + h * (1 + LOAD_SCREENS);
     if (!this.rows.length || !h) { return; }
 
@@ -266,17 +273,17 @@ var Grid = (function () {
     }
     for (k in this.loaded) {
       if (this.loaded.hasOwnProperty(k)) {
-        t = this.tiles[k];
-        if (t.offsetTop < top - h * KEEP_SCREENS || t.offsetTop > top + h * (1 + KEEP_SCREENS)) {
-          U.removeClass(t.firstChild, 'in');
-          t.firstChild.src = BLANK;
+        y = this.geo[k].top;
+        if (y < top - h * KEEP_SCREENS || y > top + h * (1 + KEEP_SCREENS)) {
+          U.removeClass(this.tiles[k].firstChild, 'in');
+          this.tiles[k].firstChild.src = BLANK;
           delete this.loaded[k];
         }
       }
     }
 
-    lastTile = this.tiles[this.tiles.length - 1];
-    if (lastTile.offsetTop < top + h * (1 + MORE_SCREENS) && this.opts.onNeedMore) { this.opts.onNeedMore(); }
+    last = this.geo[this.geo.length - 1];
+    if (last.top < top + h * (1 + MORE_SCREENS) && this.opts.onNeedMore) { this.opts.onNeedMore(); }
   };
 
   Grid.prototype.setActive = function (on) {
@@ -295,10 +302,10 @@ var Grid = (function () {
   };
 
   Grid.prototype.reveal = function (i) {
-    var t = this.tiles[i], box = this.box, pad = 24, s = this.sections[this.secOf[i]];
+    var g = this.geo[i], box = this.box, pad = 24, s = this.sections[this.secOf[i]];
     // On a section's first row, bring its title into view too.
-    var top = (t.offsetTop === this.tiles[s.start].offsetTop ? s.el.offsetTop : t.offsetTop) - pad;
-    var bottom = t.offsetTop + t.offsetHeight + pad;
+    var top = (g.top === this.geo[s.start].top ? s.top : g.top) - pad;
+    var bottom = g.top + g.h + pad;
     if (top < box.scrollTop) {
       box.scrollTop = top;
     } else if (bottom > box.scrollTop + box.clientHeight) {
@@ -313,12 +320,12 @@ var Grid = (function () {
     if (target < 0 || target >= this.rows.length) {
       if (delta > 0 && r < this.rows.length - 1) { target = this.rows.length - 1; } else { return false; }
     }
-    cur = this.tiles[this.focus];
-    x = cur.offsetLeft + cur.offsetWidth / 2;
+    cur = this.geo[this.focus];
+    x = cur.left + cur.w / 2;
     row = this.rows[target];
     for (i = row.start; i < row.end; i++) {
-      t = this.tiles[i];
-      d = Math.abs(t.offsetLeft + t.offsetWidth / 2 - x);
+      t = this.geo[i];
+      d = Math.abs(t.left + t.w / 2 - x);
       if (d < bestD) { bestD = d; best = i; }
     }
     this.setFocus(best);

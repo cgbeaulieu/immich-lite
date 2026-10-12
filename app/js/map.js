@@ -8,7 +8,11 @@ var MapView = (function () {
   'use strict';
 
   var TILE = 256;
-  var TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+  /* CARTO's dark basemap (OpenStreetMap data), free for personal use with the credit
+     below. OpenStreetMap's own tile servers block apps that can't send a Referer, which
+     a TV app's page can't, so they showed "Access blocked" on the TV. */
+  var TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+  var TILE_HOSTS = ['a', 'b', 'c', 'd'];
   var CELL = 110;        // cluster grid size in screen pixels
   var PICK_RADIUS = 90;  // how close to the crosshair a bubble must be for OK
   var MIN_ZOOM = 2, MAX_ZOOM = 17;
@@ -42,7 +46,7 @@ var MapView = (function () {
     box.appendChild(cross);
     var credit = document.createElement('div');
     credit.className = 'map-credit';
-    credit.textContent = '© OpenStreetMap contributors';
+    credit.textContent = '© OpenStreetMap contributors © CARTO';
     box.appendChild(credit);
 
     // Magic Remote: drag to move, wheel to zoom.
@@ -132,7 +136,8 @@ var MapView = (function () {
         if (!img) {
           img = document.createElement('img');
           img.className = 'map-tile';
-          img.src = TILE_URL.replace('{z}', zoom).replace('{x}', wx).replace('{y}', ty);
+          img.src = TILE_URL.replace('{s}', TILE_HOSTS[(wx + ty) % TILE_HOSTS.length])
+            .replace('{z}', zoom).replace('{x}', wx).replace('{y}', ty);
           tileLayer.appendChild(img);
           tiles[key] = img;
         }

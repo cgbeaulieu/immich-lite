@@ -36,7 +36,7 @@ app/                 the webOS app (packaged as the IPK later)
   js/details.js      the viewer's details panel: info, people, star rating, add to album
   js/settings.js     settings page and stored preferences
   js/search.js       search page and recent searches
-  js/map.js          remote-first photo map (OpenStreetMap tiles, clustered bubbles)
+  js/map.js          remote-first photo map (CARTO dark tiles of OpenStreetMap data, clustered bubbles)
   js/app.js          views and the Back stack, tabs, sources, slideshow/shuffle, keys
 tools/devserver.py   serves app/ and proxies /api to immich (or a mock library)
 capabilities.html    engine probe

@@ -164,7 +164,9 @@ var Settings = (function () {
     // Keep the focused row on screen, with its section title when it's near the top.
     r = rows[focus];
     if (active && r) {
-      if (r.el.offsetTop - 90 < box.scrollTop) { box.scrollTop = focus === 0 ? 0 : r.el.offsetTop - 90; }
+      // On the last row, show everything below it too (the hint line).
+      if (focus === rows.length - 1) { box.scrollTop = box.scrollHeight; }
+      else if (r.el.offsetTop - 90 < box.scrollTop) { box.scrollTop = focus === 0 ? 0 : r.el.offsetTop - 90; }
       else if (r.el.offsetTop + r.el.offsetHeight + 40 > box.scrollTop + box.clientHeight) {
         box.scrollTop = r.el.offsetTop + r.el.offsetHeight + 40 - box.clientHeight;
       }
