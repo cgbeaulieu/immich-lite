@@ -13,6 +13,7 @@
 var http = require('http');
 var https = require('https');
 var url = require('url');
+var trail = require('./trail');
 
 var FIRST_PORT = 8791;
 var PORT_TRIES = 6;
@@ -61,7 +62,7 @@ Proxy.prototype.listen = function (port, tries, cb) {
 };
 
 Proxy.prototype.handle = function (req, res) {
-  var t = this.target, headers = {}, k, out, base;
+  var t = this.target, headers = {}, k, out, base, began = Date.now(), what = req.method + ' ' + trail.path(req.url);
   if (req.method === 'OPTIONS') { // the browser's CORS check
     res.writeHead(204, CORS);
     return res.end();
@@ -82,10 +83,14 @@ Proxy.prototype.handle = function (req, res) {
     }
     for (k2 in CORS) { if (CORS.hasOwnProperty(k2)) { h[k2] = CORS[k2]; } }
     res.writeHead(up.statusCode, h);
+    trail.add('relay: ' + what + ' -> ' + up.statusCode + ' in ' + (Date.now() - began) + ' ms');
     up.pipe(res);
   });
   out.setTimeout(60000, function () { out.abort(); });
-  out.on('error', function (e) { fail(res, 502, 'Could not reach immich: ' + e.message); });
+  out.on('error', function (e) {
+    trail.add('relay: ' + what + ' failed after ' + (Date.now() - began) + ' ms: ' + e.message);
+    fail(res, 502, 'Could not reach immich: ' + e.message);
+  });
   req.pipe(out);
 };
 

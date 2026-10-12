@@ -14,6 +14,7 @@ var path = require('path');
 var Service = require('webos-service');
 var Pairing = require('./pairing');
 var Proxy = require('./proxy');
+var trail = require('./trail');
 
 var service = new Service('com.cgbeaulieu.immichlite.service');
 var pairing = new Pairing({ page: fs.readFileSync(path.join(__dirname, 'phone.html'), 'utf8') });
@@ -75,12 +76,14 @@ service.register('proxy', function (message) {
     if (err) { return message.respond({ returnValue: false, errorText: err.message || String(err) }); }
     if (message.isSubscription) {
       proxyUsers[message.uniqueToken] = message;
+      trail.add('app opened the relay to ' + p.target);
       hold();
     }
     message.respond({ returnValue: true, port: port, subscribed: !!message.isSubscription });
   });
 }, function (message) {
   delete proxyUsers[message.uniqueToken];
+  trail.add('app closed the relay');
   if (!hasProxyUsers()) {
     proxy.stop();
     if (!pairing.server) { release(); }

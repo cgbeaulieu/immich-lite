@@ -12,7 +12,7 @@ var Pairing = (function () {
   'use strict';
 
   var SERVICE = 'luna://com.cgbeaulieu.immichlite.service/';
-  var POLL_MS = 2000;
+  var POLL_MS = 1000; // a local call on the TV, cheap; quicker pickup after the phone sends
   var card, qrBox, urlEl, codeEl, stateEl, timer = null, token = 0, handlers = null, bridges = [];
 
   // ---------- transport ----------

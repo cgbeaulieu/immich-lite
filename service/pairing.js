@@ -17,6 +17,7 @@
 var http = require('http');
 var os = require('os');
 var crypto = require('crypto');
+var trail = require('./trail');
 
 var FIRST_PORT = 8790;          // immich webOS uses 8788; keep clear of it
 var PORT_TRIES = 6;
@@ -46,6 +47,7 @@ Pairing.prototype.start = function (params, cb) {
   var self = this;
   self.reset();
   self.code = newCode();
+  trail.add('sign-in screen up: new code');
   self.prefill = params && typeof params.server === 'string' ? params.server : '';
   self.expires = Date.now() + LIFETIME_MS;
   if (self.server) { return cb(null, self.info()); }
@@ -71,6 +73,7 @@ Pairing.prototype.poll = function () {
   if (this.expired()) { return { state: 'expired' }; }
   if (this.credentials) {
     c = this.credentials;
+    trail.add('TV picked up the details');
     this.credentials = null;
     return { state: 'received', credentials: c };
   }
@@ -80,6 +83,7 @@ Pairing.prototype.poll = function () {
 /* The app says whether signing in worked, for the phone to show. */
 Pairing.prototype.report = function (ok, message) {
   this.result = { ok: !!ok, message: String(message || '') };
+  trail.add('TV reports: ' + (ok ? 'signed in' : 'failed: ' + this.result.message));
 };
 
 Pairing.prototype.stop = function () {
@@ -113,6 +117,9 @@ Pairing.prototype.handle = function (req, res) {
   if (req.method === 'GET' && path === '/info') {
     return json(res, 200, { server: self.prefill, expired: self.expired() });
   }
+  if (req.method === 'GET' && path === '/log') {
+    return json(res, 200, trail.list());
+  }
   if (req.method === 'GET' && path === '/status') {
     return json(res, 200, { result: self.result });
   }
@@ -139,8 +146,10 @@ Pairing.prototype.submit = function (b, done) {
   server = server.replace(/\/+$/, '');
   if (b.apiKey) {
     this.credentials = { server: server, apiKey: String(b.apiKey).trim() };
+    trail.add('phone sent an API key for ' + server);
   } else if (b.email && b.password) {
     this.credentials = { server: server, email: String(b.email).trim(), password: String(b.password) };
+    trail.add('phone sent email ' + trail.maskEmail(b.email) + ' and a password for ' + server);
   } else {
     return done(400, { error: 'Enter your email and password, or an API key.' });
   }
