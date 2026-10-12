@@ -36,7 +36,8 @@ app/                 the webOS app (packaged as the IPK later)
   js/details.js      the viewer's details panel: info, people, star rating, add to album
   js/settings.js     settings page and stored preferences
   js/search.js       search page and recent searches
-  js/map.js          remote-first photo map (CARTO dark tiles of OpenStreetMap data, clustered bubbles)
+  js/vtile.js        decodes immich's vector map tiles and draws them on a canvas
+  js/map.js          remote-first photo map (immich's tiles of OpenStreetMap data, clustered bubbles)
   js/app.js          views and the Back stack, tabs, sources, slideshow/shuffle, keys
 tools/devserver.py   serves app/ and proxies /api to immich (or a mock library)
 capabilities.html    engine probe
@@ -128,7 +129,7 @@ we build the IPK ourselves (`usr/palm/applications/<id>/` and `usr/palm/services
 1. **IPK packaging:** app icons (80x80 and 130x130 PNG), and a small script that builds the `.ipk` (an `ar` archive of `debian-binary`, `control.tar.gz` and `data.tar.gz`), so no webOS SDK is needed.
 2. **Install over root SSH** and launch on the TV. This needs a short window when nobody is watching. Then settle the CORS question above.
 3. Real-library performance: test against the full immich library. If the grid's DOM gets too heavy, virtualise it (keep only nearby rows in the DOM). `/map/markers` for a very large library may also be slow to load and cluster on the TV.
-4. Check on the TV: OpenStreetMap tiles load over HTTPS (old TVs can lack newer root certificates), and whether the webOS screensaver interrupts long slideshows.
+4. Check on the TV: how fast the vector map draws (decoding runs on the page), and whether the webOS screensaver interrupts long slideshows.
 5. Stacks collapse on the Photos timeline only (see the Stacks row above). Check that the ⧉ badge glyph renders in the TV's fonts.
 6. Check video on the TV: real immich transcodes play (and 4K or HEVC originals that immich didn't transcode fail cleanly to the still), the video draws above the still and below the bar, and stepping between videos never leaves the decoder stuck. Tested so far only in desktop Chromium against the mock.
 7. Check on the TV: the ★ and ☆ characters render in the TV's fonts (♥ already does, and they're in the same Unicode block), and the number keys on the LG remote send 48-57.

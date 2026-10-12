@@ -584,6 +584,7 @@
       MapView.show({
         load: function (cb) { client.mapMarkers(Settings.get('withPartners') === 'on', cb); },
         thumbUrl: function (id) { return client.thumbUrl(id, 'thumbnail'); },
+        tiles: mapTiles(),
         onOpen: function (ids, label) {
           push(staticView('map', label, map(ids, function (id) { return { id: id, isImage: true, isFavorite: false, date: '' }; })));
         },
@@ -1153,6 +1154,14 @@
   // ---------- keys ----------
 
   function pointer() { if (zone !== 'panel') { setZone('panel'); } }
+
+  /* immich's map tiles, the ones immich's own web app draws. On the TV they come through
+     the app's relay: the tile server answers the packaged app's "null" origin with an
+     error, and the relay doesn't send one. */
+  function mapTiles() {
+    var relay = /^http:\/\/127\.0\.0\.1:\d+$/.test(client.apiBase || '');
+    return relay ? client.apiBase + '/_maptiles/v1' : 'https://tiles.immich.cloud/v1';
+  }
 
   function panelKey(k) {
     var v = view();

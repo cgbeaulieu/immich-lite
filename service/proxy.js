@@ -24,6 +24,9 @@ var CORS = {
   'Access-Control-Max-Age': '600'
 };
 // Not passed on: hop-by-hop headers, and the TV page's origin (immich doesn't need it).
+var MAP_PREFIX = '/_maptiles/';
+var MAP_HOST = 'tiles.immich.cloud';
+var MAP_PATH = /^\/v1(\/\d{1,2}\/\d{1,6}\/\d{1,6}\.mvt|\.json)$/;
 var DROP = { host: 1, origin: 1, referer: 1, connection: 1, 'keep-alive': 1, 'transfer-encoding': 1, te: 1, upgrade: 1 };
 
 function Proxy(options) {
@@ -67,6 +70,7 @@ Proxy.prototype.handle = function (req, res) {
     res.writeHead(204, CORS);
     return res.end();
   }
+  if (req.url.indexOf(MAP_PREFIX) === 0) { return mapTile(req, res, what, began); }
   if (!t) { return fail(res, 503, 'The relay has no server yet'); }
   for (k in req.headers) {
     if (req.headers.hasOwnProperty(k) && !DROP[k]) { headers[k] = req.headers[k]; }
@@ -93,6 +97,33 @@ Proxy.prototype.handle = function (req, res) {
   });
   req.pipe(out);
 };
+
+/* The map's tiles, from immich's own tile server (what immich's web app uses). The
+   TV's packaged page sends "Origin: null", which that server answers with an error, so
+   the app asks here instead. Only tile and TileJSON paths on that one host are passed
+   on: a web page in the TV's browser can reach 127.0.0.1 too, so this must not become
+   a way to fetch anything else. */
+function mapTile(req, res, what, began) {
+  var path = req.url.substr(MAP_PREFIX.length - 1), out;
+  if (req.method !== 'GET' || !MAP_PATH.test(path)) { return fail(res, 404, 'Not a map tile'); }
+  out = https.get({
+    hostname: MAP_HOST, path: path,
+    headers: { 'User-Agent': 'immich-lite-webos (+https://github.com/cgbeaulieu/immich-lite-webos)' }
+  }, function (up) {
+    var h = {}, k;
+    for (k in up.headers) {
+      if (up.headers.hasOwnProperty(k) && !DROP[k] && k.indexOf('access-control-') !== 0 && k !== 'set-cookie') {
+        h[k] = up.headers[k];
+      }
+    }
+    for (k in CORS) { if (CORS.hasOwnProperty(k)) { h[k] = CORS[k]; } }
+    res.writeHead(up.statusCode, h);
+    if (up.statusCode !== 200) { trail.add('relay: ' + what + ' -> ' + up.statusCode + ' in ' + (Date.now() - began) + ' ms'); }
+    up.pipe(res);
+  });
+  out.setTimeout(30000, function () { out.abort(); });
+  out.on('error', function (e) { fail(res, 502, 'Could not reach the map tiles: ' + e.message); });
+}
 
 /* Why the TV couldn't reach immich, in words. */
 function reachError(e, t) {

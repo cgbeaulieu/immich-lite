@@ -72,7 +72,7 @@ The photos are stock images ([credits](docs/screenshots/CREDITS.md)), shown by t
 |---|---|
 | **Photos** | Your timeline, laid out like immich's web app: each photo at its own shape in justified rows with thin lines between them, grouped by day (or month), loaded a month at a time. Videos show ▶ and their length, favorites a ♥. Stacks (burst shots, edits) show as one photo with a ⧉ count |
 | **Explore** | "On this day" memories, People (face recognition) and Places (cities), plus a Library row: **Archive** (archived photos), **Folders** (browse by the folders the photos are stored in) and **Tags** |
-| **Map** | Your photos on a dark map (CARTO tiles, OpenStreetMap data), grouped into bubbles |
+| **Map** | Your photos on a dark map (immich's own map tiles, OpenStreetMap data), grouped into bubbles |
 | **Favorites** | Photos you've starred |
 | **Albums** | Your albums and albums shared with you |
 | **Search** | immich smart search ("beach", "dog in the snow"), with recent searches |
@@ -131,7 +131,7 @@ The Magic Remote pointer works too: point to focus, click to open, and on the ma
 - **Target device:** LG webOS 3.4 (first test TV: UH7650, webOS 3.4.3 "Rockhopper"), rooted, with the Homebrew Channel installed.
 - **Engine:** Chromium 38 (`Chrome/38.0.2125.122` on webOS 3.4.3). **ES5 only**, XHR instead of fetch, no CSS grid. [docs/PLAN.md](docs/PLAN.md) lists what that rules out and what the app does instead.
 - **Server:** self-hosted immich v3, through its REST API.
-- **Map tiles** come from [CARTO](https://carto.com/basemaps) (OpenStreetMap data) over the internet, free for personal use with the credit shown on the map. OpenStreetMap's own tile servers block TV apps, which can't send a Referer.
+- **Map tiles** come from immich's own tile server (`tiles.immich.cloud`, OpenStreetMap data), the one immich's web app uses, so no key or sign-up is needed. They're vector tiles, which the app draws itself on the TV (`app/js/vtile.js`); on the TV they come through the app's relay, since that server refuses the packaged app's `null` origin. OpenStreetMap's own tile servers block TV apps (no Referer), and CARTO now wants a key.
 - **No build step:** the files in `app/` (the web app) and `service/` (the phone sign-in service) are what ships.
 - **QR codes** are drawn by [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) by Kazuhiko Arase (MIT license), bundled unchanged as `app/lib/qrcode.js`.
 

@@ -1,4 +1,4 @@
-/* Photo map for the remote: OpenStreetMap tiles with photos grouped into bubbles.
+/* Photo map for the remote: an OpenStreetMap map with photos grouped into bubbles.
    Arrows move the map, CH+/CH- zoom, OK opens the bubble under the crosshair in the
    middle (or zooms in). The Magic Remote can drag, scroll to zoom and click bubbles.
 
@@ -7,12 +7,15 @@
 var MapView = (function () {
   'use strict';
 
-  var TILE = 256;
-  /* CARTO's dark basemap (OpenStreetMap data), free for personal use with the credit
-     below. OpenStreetMap's own tile servers block apps that can't send a Referer, which
-     a TV app's page can't, so they showed "Access blocked" on the TV. */
-  var TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-  var TILE_HOSTS = ['a', 'b', 'c', 'd'];
+  var TILE = 256;         // zoom levels count in 256-pixel tiles, as on most web maps
+  /* The map itself is drawn from immich's own vector tiles (see vtile.js), the ones
+     immich's web app uses: no key needed, unlike CARTO, and OpenStreetMap's servers
+     block apps that can't send a Referer. They're drawn on 512-pixel canvases, one
+     level below the zoom above; past level 15 (the deepest immich has) they're enlarged. */
+  var DT = 512, SRC_MAX = 15;
+  var KEEP_TILES = 24;    // canvases kept for panning back (about 1 MB each)
+  var KEEP_SOURCES = 40;  // decoded tiles kept
+  var FETCHES = 4;        // tile downloads at once
   var CELL = 110;        // cluster grid size in screen pixels
   var PICK_RADIUS = 90;  // how close to the crosshair a bubble must be for OK
   var MIN_ZOOM = 2, MAX_ZOOM = 17;
@@ -21,6 +24,7 @@ var MapView = (function () {
   var markers = null;    // [{id, x, y, city}] with x, y in world units (0..1)
   var zoom = 3, cx = 0.5, cy = 0.4;
   var tiles = {}, clusters = [], picked = null, handlers = null;
+  var sources = {}, sourceOrder = [], queue = [], fetching = 0, wanted = {}, stamp = 0;
 
   /* Web Mercator: longitude/latitude to 0..1 world coordinates. */
   function project(lat, lon) {
@@ -46,7 +50,7 @@ var MapView = (function () {
     box.appendChild(cross);
     var credit = document.createElement('div');
     credit.className = 'map-credit';
-    credit.textContent = '© OpenStreetMap contributors © CARTO';
+    credit.textContent = '© OpenStreetMap contributors · map tiles by immich';
     box.appendChild(credit);
 
     // Magic Remote: drag to move, wheel to zoom.
@@ -74,7 +78,8 @@ var MapView = (function () {
     built = true;
   }
 
-  /* h: {load(cb(err, markers)), thumbUrl(id), onOpen(ids, label), onPointer()} */
+  /* h: {load(cb(err, markers)), thumbUrl(id), tiles (base URL of the vector tiles),
+         onOpen(ids, label), onPointer()} */
   function show(h) {
     handlers = h;
     if (!built) { build(); }
@@ -122,38 +127,111 @@ var MapView = (function () {
   }
 
   function render() {
-    var W = box.clientWidth, H = box.clientHeight, n = Math.pow(2, zoom), scale = TILE * n;
-    var ox = cx * scale - W / 2, oy = cy * scale - H / 2;
-    var used = {}, tx, ty, key, img, wx, k;
+    var W = box.clientWidth, H = box.clientHeight, scale = TILE * Math.pow(2, zoom);
+    var d = zoom - 1, n = Math.pow(2, d), ox = cx * scale - W / 2, oy = cy * scale - H / 2;
+    var tx, ty, key, t, k, spare = [];
 
-    // Tiles
-    for (ty = Math.floor(oy / TILE); ty * TILE < oy + H; ty++) {
+    stamp++;
+    wanted = {};
+    for (ty = Math.floor(oy / DT); ty * DT < oy + H; ty++) {
       if (ty < 0 || ty >= n) { continue; }
-      for (tx = Math.floor(ox / TILE); tx * TILE < ox + W; tx++) {
-        wx = ((tx % n) + n) % n;
-        key = zoom + '/' + tx + '/' + ty;
-        img = tiles[key];
-        if (!img) {
-          img = document.createElement('img');
-          img.className = 'map-tile';
-          img.src = TILE_URL.replace('{s}', TILE_HOSTS[(wx + ty) % TILE_HOSTS.length])
-            .replace('{z}', zoom).replace('{x}', wx).replace('{y}', ty);
-          tileLayer.appendChild(img);
-          tiles[key] = img;
-        }
-        img.style.left = Math.round(tx * TILE - ox) + 'px';
-        img.style.top = Math.round(ty * TILE - oy) + 'px';
-        used[key] = true;
+      for (tx = Math.floor(ox / DT); tx * DT < ox + W; tx++) {
+        key = d + '/' + tx + '/' + ty; // tx unwrapped: the world can show twice side by side
+        t = tiles[key] || makeTile(d, tx, ty, n);
+        t.used = stamp;
+        t.el.style.left = Math.round(tx * DT - ox) + 'px';
+        t.el.style.top = Math.round(ty * DT - oy) + 'px';
+        if (!t.el.parentNode) { tileLayer.appendChild(t.el); }
+        if (!t.ready) { wanted[t.source] = true; }
       }
     }
+    // Off-screen canvases leave the page; the most recent few are kept for panning back.
     for (k in tiles) {
-      if (tiles.hasOwnProperty(k) && !used[k]) {
-        tileLayer.removeChild(tiles[k]);
-        delete tiles[k];
+      if (tiles.hasOwnProperty(k) && tiles[k].used !== stamp) {
+        if (tiles[k].el.parentNode) { tileLayer.removeChild(tiles[k].el); }
+        spare.push(tiles[k]);
       }
     }
+    spare.sort(function (a, b) { return a.used - b.used; });
+    for (k = 0; k < spare.length - KEEP_TILES; k++) { delete tiles[spare[k].key]; }
 
     drawClusters(W, H, scale, ox, oy);
+  }
+
+  /* A tile's canvas starts as the enlarged quarter of the tile above it, when that one
+     is drawn (so zooming in never flashes empty), then gets drawn properly once its
+     data is in. */
+  function makeTile(d, tx, ty, n) {
+    var wx = ((tx % n) + n) % n, s = Math.min(d, SRC_MAX), f = d - s;
+    var el = document.createElement('canvas'), ctx, up, t;
+    el.className = 'map-tile';
+    el.width = el.height = DT;
+    ctx = el.getContext('2d');
+    up = tiles[(d - 1) + '/' + Math.floor(tx / 2) + '/' + Math.floor(ty / 2)];
+    if (up && up.ready) {
+      ctx.drawImage(up.el, (((tx % 2) + 2) % 2) * DT / 2, (ty % 2) * DT / 2, DT / 2, DT / 2, 0, 0, DT, DT);
+    } else {
+      ctx.fillStyle = VTile.WATER;
+      ctx.fillRect(0, 0, DT, DT);
+    }
+    t = { key: d + '/' + tx + '/' + ty, el: el, ready: false, used: stamp,
+      source: s + '/' + (wx >> f) + '/' + (ty >> f) };
+    tiles[t.key] = t;
+    wanted[t.source] = true;
+    source(t.source, function (data) {
+      var scaleUp = Math.pow(2, f), extent = (data.earth || data.water || { extent: 4096 }).extent;
+      VTile.draw(ctx, data, {
+        z: d, size: DT, k: DT * scaleUp / extent,
+        ox: -(wx - ((wx >> f) << f)) * DT, oy: -(ty - ((ty >> f) << f)) * DT
+      });
+      t.ready = true;
+    });
+    return t;
+  }
+
+  /* Decoded tile data by 'z/x/y', downloaded at most FETCHES at a time. A download
+     whose tile scrolled or zoomed out of view before its turn is dropped. */
+  function source(key, cb) {
+    var c = sources[key];
+    if (c && c.data) { return cb(c.data); }
+    if (c) { c.waiting.push(cb); return; }
+    sources[key] = { data: null, waiting: [cb] };
+    queue.push(key);
+    pump();
+  }
+
+  function pump() {
+    var key;
+    while (fetching < FETCHES && queue.length) {
+      key = queue.shift();
+      if (!wanted[key]) { delete sources[key]; continue; } // asked for again if it's needed
+      fetchTile(key);
+    }
+  }
+
+  function fetchTile(key) {
+    var x = new XMLHttpRequest();
+    fetching++;
+    x.open('GET', handlers.tiles + '/' + key + '.mvt', true);
+    x.responseType = 'arraybuffer';
+    x.timeout = 30000;
+    x.onload = x.onerror = x.ontimeout = function () {
+      var c = sources[key], data = null, list, i;
+      fetching--;
+      if (x.status === 200 && x.response) {
+        try { data = VTile.decode(x.response); } catch (e) { data = null; }
+      }
+      if (!c) { return pump(); }
+      if (!data) { delete sources[key]; return pump(); } // left as it is; tried again next time
+      c.data = data;
+      list = c.waiting;
+      c.waiting = [];
+      sourceOrder.push(key);
+      if (sourceOrder.length > KEEP_SOURCES) { delete sources[sourceOrder.shift()]; }
+      for (i = 0; i < list.length; i++) { list[i](data); }
+      pump();
+    };
+    x.send();
   }
 
   function drawClusters(W, H, scale, ox, oy) {
