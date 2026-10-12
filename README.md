@@ -122,7 +122,7 @@ Photos shared with you through immich's partner sharing (Account Settings → Pa
 | Photo viewer | Left/Right previous/next, OK slideshow on/off, **▲ favorite**, **▼ details panel**, **1-5 star rating** (0 clears it), CH+/CH- step through a stack |
 | On a video | OK, Play and Pause play and pause it (it starts by itself when opened from the grid). Left/Right stop it and move on |
 | Details panel | Up/Down move between faces, rating, Add to album and Hide info bar (Down on the last row closes), Left/Right pick a face or change the stars, OK selects, Back closes. Left/Right don't change photos while it's open |
-| Map | Arrows move, CH+/CH- zoom, OK opens the bubble under the crosshair |
+| Map | Arrows move, CH+/CH- zoom, OK opens the bubble nearest the crosshair. With the Magic Remote the crosshair hides: point at a bubble and click it, scroll to zoom toward the pointer, drag to move |
 
 The Magic Remote pointer works too: point to focus, click to open, and on the map drag to move and scroll to zoom.
 
