@@ -49,7 +49,7 @@ function run(i) {
 var info, code;
 
 step('start gives a code and a URL with it', function (next) {
-  pairing.start({ server: 'http://192.168.8.145:2283' }, function (err, i) {
+  pairing.start({ server: 'http://192.168.1.10:2283' }, function (err, i) {
     assert.ifError(err);
     info = i;
     code = i.code.replace('-', '');
@@ -70,7 +70,7 @@ step('the phone page is served', function (next) {
 step('/info pre-fills the server the TV knows', function (next) {
   request('GET', '/info', null, function (status, json) {
     assert.equal(status, 200);
-    assert.equal(json.server, 'http://192.168.8.145:2283');
+    assert.equal(json.server, 'http://192.168.1.10:2283');
     assert.equal(json.expired, false);
     next();
   });
@@ -106,7 +106,7 @@ step('missing password is refused', function (next) {
 
 step('the right code (lower case, with a dash) is accepted', function (next) {
   var typed = (code.substr(0, 4) + '-' + code.substr(4)).toLowerCase();
-  request('POST', '/submit', { code: typed, server: 'http://192.168.8.145:2283/', email: ' me@example.com ', password: 'secret' }, function (status, json) {
+  request('POST', '/submit', { code: typed, server: 'http://192.168.1.10:2283/', email: ' me@example.com ', password: 'secret' }, function (status, json) {
     assert.equal(status, 200);
     assert.equal(json.ok, true);
     next();
@@ -116,7 +116,7 @@ step('the right code (lower case, with a dash) is accepted', function (next) {
 step('the app receives them once, cleaned up', function (next) {
   var r = pairing.poll();
   assert.equal(r.state, 'received');
-  assert.deepEqual(r.credentials, { server: 'http://192.168.8.145:2283', email: 'me@example.com', password: 'secret' });
+  assert.deepEqual(r.credentials, { server: 'http://192.168.1.10:2283', email: 'me@example.com', password: 'secret' });
   assert.equal(pairing.poll().state, 'waiting');
   next();
 });
@@ -133,9 +133,9 @@ step('the phone sees the TV\'s result', function (next) {
 });
 
 step('an address without http:// gets it added', function (next) {
-  request('POST', '/submit', { code: code, server: 'mediaserver:2283', email: 'a@b.c', password: 'p' }, function (status) {
+  request('POST', '/submit', { code: code, server: 'photos:2283', email: 'a@b.c', password: 'p' }, function (status) {
     assert.equal(status, 200);
-    assert.equal(pairing.poll().credentials.server, 'http://mediaserver:2283');
+    assert.equal(pairing.poll().credentials.server, 'http://photos:2283');
     next();
   });
 });

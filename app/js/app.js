@@ -1079,7 +1079,7 @@
   /* done(ok, message) is optional: phone sign-in uses it to report back. */
   function connect(done) {
     var server = U.$('server').value.trim().replace(/\/+$/, ''), email, password, key, c;
-    if (server && !/^[a-z][a-z0-9+.-]*:\/\//i.test(server)) { server = 'http://' + server; } // "mediaserver:2283" works too
+    if (server && !/^[a-z][a-z0-9+.-]*:\/\//i.test(server)) { server = 'http://' + server; } // "photos:2283" works too
     done = typeof done === 'function' ? done : function () {};
     function failed(err) {
       setupMsg(err.status === 0 ? err.message + corsHint(server) : err.message, true);

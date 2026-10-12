@@ -159,7 +159,7 @@ Pairing.prototype.submit = function (b, done) {
 
 // ---------- helpers ----------
 
-/* "mediaserver:2283" -> "http://mediaserver:2283" (most home servers are plain http). */
+/* "photos:2283" -> "http://photos:2283" (most home servers are plain http). */
 function withScheme(address) {
   var s = String(address || '').trim();
   return s && !/^[a-z][a-z0-9+.-]*:\/\//i.test(s) ? 'http://' + s : s;
