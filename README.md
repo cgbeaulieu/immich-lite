@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?style=for-the-badge&label=release&color=43a047&labelColor=ededed" alt="Latest release"></a>
-  <a href="https://github.com/cgbeaulieu/immich-lite/releases"><img src="https://img.shields.io/github/downloads/cgbeaulieu/immich-lite/total?style=for-the-badge&label=downloads&color=5c6bc0&labelColor=ededed" alt="Downloads"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?cacheSeconds=1800&style=for-the-badge&label=release&color=43a047&labelColor=ededed" alt="Latest release"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases"><img src="https://img.shields.io/github/downloads/cgbeaulieu/immich-lite/total?cacheSeconds=1800&style=for-the-badge&label=downloads&color=5c6bc0&labelColor=ededed" alt="Downloads"></a>
   <img src="https://img.shields.io/badge/webOS-3.x%20%E2%80%93%204.x-a50034?style=for-the-badge&labelColor=ededed" alt="webOS 3.x to 4.x">
   <a href="https://github.com/cgbeaulieu/immich-lite/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/cgbeaulieu/immich-lite/ci.yml?branch=main&style=for-the-badge&label=checks&labelColor=ededed" alt="Checks"></a>
 </p>
@@ -22,7 +22,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?style=for-the-badge&label=Download%20.ipk&logo=lg&logoColor=a50034&color=43a047&labelColor=ededed" alt="Download the latest .ipk"></a>
+  <a href="https://github.com/cgbeaulieu/immich-lite/releases/latest/download/com.cgbeaulieu.immichlite.ipk"><img src="https://img.shields.io/github/v/release/cgbeaulieu/immich-lite?cacheSeconds=1800&style=for-the-badge&label=Download%20.ipk&logo=lg&logoColor=a50034&color=43a047&labelColor=ededed" alt="Download the latest .ipk"></a>
 </p>
 
 > Unofficial community app. Not affiliated with or endorsed by immich or FUTO. "immich" is a trademark of its owners.
