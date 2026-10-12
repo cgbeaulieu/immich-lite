@@ -21,12 +21,14 @@ const APP = process.env.APP_URL || 'http://localhost:8010/';
 const PORT = 9333;
 
 const KEY = { LEFT: 37, UP: 38, RIGHT: 39, DOWN: 40, OK: 13, BACK: 27, CH_DOWN: 34, PLAY: 415 };
-const RAIL = ['photos', 'search', 'explore', 'map', 'favorites', 'albums', 'slides', 'settings'];
+const RAIL = ['photos', 'search', 'explore', 'map', 'favorites', 'albums', 'slides', 'settings', 'signout'];
 
 // Signed in to the mock (it takes any token), plus per-shot settings.
 const SIGNED_IN = { server: APP.replace(/\/$/, ''), authMode: 'login', token: 'mock-session-token' };
 
 // Each step is a key name, ['rail', key] to open a sidebar entry, ['type', text], or ['wait', ms].
+// pairAs: the address the phone sign-in QR code shows, in place of this PC's (the dev
+// server's /pair/start answers with this PC's LAN address; the TV's service with its own).
 const SHOTS = {
   timeline: { store: { groupBy: 'month' }, steps: [] },
   viewer: { steps: ['RIGHT', 'OK', ['wait', 2500]] },
@@ -36,7 +38,9 @@ const SHOTS = {
   albums: { steps: [['rail', 'albums']] },
   search: { steps: [['rail', 'search'], ['type', 'travel'], 'OK', ['wait', 2500]] },
   slideshow: { steps: [['rail', 'slides']] },
-  signin: { store: { token: '', server: 'http://192.168.1.20:2283' }, steps: [] },
+  signin: { store: { token: '', server: 'http://192.168.1.20:2283' }, pairAs: 'http://192.168.1.20:8790', steps: [['wait', 1500]] },
+  // The page a phone opens from the QR code, filled in but not sent.
+  phone: { phone: { server: 'http://192.168.1.20:2283', email: 'alex@example.com', password: 'not-a-real-password' } },
 };
 
 function findBrowser() {
@@ -70,8 +74,10 @@ function session(url) {
   const ws = new WebSocket(url);
   let id = 0;
   const waiting = new Map();
+  const listeners = {};
   ws.onmessage = (e) => {
     const msg = JSON.parse(e.data);
+    if (msg.method && listeners[msg.method]) listeners[msg.method](msg.params);
     if (msg.id && waiting.has(msg.id)) {
       const { resolve, reject } = waiting.get(msg.id);
       waiting.delete(msg.id);
@@ -82,7 +88,8 @@ function session(url) {
     waiting.set(++id, { resolve, reject });
     ws.send(JSON.stringify({ id, method, params }));
   });
-  return new Promise((resolve) => { ws.onopen = () => resolve({ send, close: () => ws.close() }); });
+  const on = (method, fn) => { listeners[method] = fn; };
+  return new Promise((resolve) => { ws.onopen = () => resolve({ send, on, close: () => ws.close() }); });
 }
 
 async function press(cdp, name) {
@@ -93,9 +100,40 @@ async function press(cdp, name) {
   await sleep(250);
 }
 
+async function shootPhone(cdp, name, fill) {
+  await cdp.send('Page.navigate', { url: APP });
+  await sleep(1000);
+  const { result } = await cdp.send('Runtime.evaluate', { awaitPromise: true, returnByValue: true, expression:
+    `fetch('pair/start', { method: 'POST', body: JSON.stringify({ server: ${JSON.stringify(fill.server)} }) }).then((r) => r.json())` });
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 2, mobile: true });
+  await cdp.send('Page.navigate', { url: APP + 'pair/phone?c=' + result.value.code.replace('-', '') });
+  await sleep(1500);
+  await cdp.send('Runtime.evaluate', { expression:
+    `document.getElementById('email').value = ${JSON.stringify(fill.email)};` +
+    `document.getElementById('password').value = ${JSON.stringify(fill.password)};` });
+  await sleep(300);
+  const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 88 });
+  writeFileSync(join(OUT, name + '.jpg'), Buffer.from(data, 'base64'));
+  await cdp.send('Runtime.evaluate', { expression: "fetch('/pair/stop', { method: 'POST' })" });
+  await cdp.send('Emulation.setDeviceMetricsOverride', { width: 1920, height: 1080, deviceScaleFactor: 1, mobile: false });
+  console.log('saved', name);
+}
+
 async function shoot(cdp, name, shot) {
+  if (shot.phone) return shootPhone(cdp, name, shot.phone);
   const store = { ...SIGNED_IN, tileSize: 'medium', ...shot.store };
   const js = Object.entries(store).map(([k, v]) => `localStorage.setItem('immichlite.${k}', ${JSON.stringify(v)});`).join('');
+  if (shot.pairAs) {
+    // Answer /pair/start as the TV would: its own address, the service's port, /?c=CODE.
+    cdp.on('Fetch.requestPaused', async ({ requestId, responseStatusCode, responseHeaders }) => {
+      const { body, base64Encoded } = await cdp.send('Fetch.getResponseBody', { requestId });
+      const info = JSON.parse(base64Encoded ? Buffer.from(body, 'base64').toString() : body);
+      info.url = shot.pairAs + '/?c=' + info.code.replace('-', '');
+      await cdp.send('Fetch.fulfillRequest', { requestId, responseCode: responseStatusCode, responseHeaders,
+        body: Buffer.from(JSON.stringify(info)).toString('base64') });
+    });
+    await cdp.send('Fetch.enable', { patterns: [{ urlPattern: '*/pair/start*', requestStage: 'Response' }] });
+  }
   await cdp.send('Page.navigate', { url: APP });
   await sleep(500);
   await cdp.send('Runtime.evaluate', { expression: 'localStorage.clear();' + js });
@@ -119,6 +157,7 @@ async function shoot(cdp, name, shot) {
   await sleep(800);
   const { data } = await cdp.send('Page.captureScreenshot', { format: 'jpeg', quality: 88 });
   writeFileSync(join(OUT, name + '.jpg'), Buffer.from(data, 'base64'));
+  if (shot.pairAs) await cdp.send('Fetch.disable');
   console.log('saved', name);
 }
 
