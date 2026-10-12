@@ -5,7 +5,8 @@ var Viewer = (function () {
   var root, img, bar, caption, hint, status, toastEl, progress;
   var okLabel = 'Slideshow';
   var opts = null, index = 0, playing = false, timer = null, toastTimer = null, preload = null;
-  var photoToken = 0, arrows = {};
+  var photoToken = 0, arrows = {}, idleTimer = null;
+  var IDLE_MS = 4000;
 
   function init() {
     root = U.$('viewer');
@@ -17,6 +18,7 @@ var Viewer = (function () {
     toastEl = U.$('viewer-toast');
     progress = U.$('viewer-progress-fill');
     root.onclick = function () { next(); }; // Magic Remote click
+    root.onmousemove = function () { wake(); };
     initArrows();
     initStack();
     initVideo();
@@ -37,6 +39,7 @@ var Viewer = (function () {
     playing = false;
     U.show(root);
     U.show(bar);
+    wake();
     playing = !!o.autoplay; // so a slideshow that starts on a video skips it
     show(o.index, 1);
     playing = false;
@@ -50,6 +53,8 @@ var Viewer = (function () {
     setPlaying(false, true);
     U.hide(toastEl);
     photoToken++;
+    clearTimeout(idleTimer);
+    U.removeClass(root, 'idle');
     img.src = Grid.BLANK;
     stopVideo();
     U.hide(root);
@@ -298,7 +303,17 @@ var Viewer = (function () {
     Details.open(it, !bar.classList.contains('hidden'));
   }
 
+  /* The info bar, hints and arrows fade out after a few seconds of no keys, so the
+     photo or video has the screen; any key or pointer movement brings them back.
+     (Fading is an opacity change, which is cheap for the TV to draw.) */
+  function wake() {
+    U.removeClass(root, 'idle');
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(function () { U.addClass(root, 'idle'); }, IDLE_MS);
+  }
+
   function key(k) {
+    wake();
     var n = Details.digit(k);
     if (n !== -1) { if (opts && opts.items[index]) { Details.rate(opts.items[index], n); } return true; }
     // The open panel takes every key but Stop, so nothing changes under it.
@@ -349,7 +364,7 @@ var Viewer = (function () {
     vinfo.appendChild(line);
     bar.insertBefore(vinfo, bar.firstChild);
 
-    video.addEventListener('loadedmetadata', function () { turnVideo(); }, false); // frame size known now
+    video.addEventListener('loadedmetadata', function () { noteTurn(); }, false); // frame size known now
     video.addEventListener('playing', function () {
       if (videoItem) { U.show(video); status.textContent = ''; }
     }, false);
@@ -373,11 +388,12 @@ var Viewer = (function () {
     findVideoTurn(it);
   }
 
-  /* Phones record portrait video as landscape frames plus a rotation flag, and the
-     TV's engine ignores the flag, so the video plays sideways. immich reports the
-     rotation as an EXIF orientation ('6' = turn 90 clockwise, '8' = 90 the other way,
-     '3' = 180); the video is turned in CSS to match. */
-  var videoTurn = null;
+  /* Phones record portrait video as landscape frames plus a rotation flag. The TV's
+     video layer ignores the flag and also ignores CSS rotation (it draws video on its own
+     hardware plane), so the app can't turn it: only a copy immich has re-encoded upright
+     plays the right way up. When a video is affected, say so once, so it's not a mystery.
+     immich reports the rotation as an EXIF orientation ('6', '8', '3' or degrees). */
+  var videoTurn = null, turnNoted = null;
 
   function findVideoTurn(it) {
     var c = opts && opts.client;
@@ -385,30 +401,17 @@ var Viewer = (function () {
     c.asset(it.id, function (err, a) {
       var o = !err && a && a.exifInfo && String(a.exifInfo.orientation || '');
       if (videoItem !== it) { return; }
-      videoTurn = o === '6' || o === '90' ? 90 : (o === '8' || o === '-90' || o === '270' ? -90 : (o === '3' || o === '180' ? 180 : 0));
-      turnVideo();
+      videoTurn = /^(6|8|90|-90|270)$/.test(o);
+      noteTurn();
     });
   }
 
-  /* Only when the TV really decoded it sideways (a landscape frame for a turned video):
-     videos immich has already re-encoded upright are left alone. */
-  function turnVideo() {
-    var st = video.style, W = root.clientWidth, H = root.clientHeight, deg = videoTurn || 0, sideways;
-    sideways = video.videoWidth > video.videoHeight;
-    if (!videoItem || !video.videoWidth || !(deg === 180 || (deg && sideways))) { return unturnVideo(); }
-    if (deg === 180) {
-      st.width = W + 'px'; st.height = H + 'px'; st.left = '0'; st.top = '0';
-    } else { // a box the other way round, turned into place
-      st.width = H + 'px'; st.height = W + 'px';
-      st.left = Math.round((W - H) / 2) + 'px'; st.top = Math.round((H - W) / 2) + 'px';
-    }
-    st.webkitTransform = st.transform = 'rotate(' + deg + 'deg)';
-  }
-
-  function unturnVideo() {
-    var st = video.style;
-    st.width = st.height = st.left = st.top = '';
-    st.webkitTransform = st.transform = '';
+  /* Only when the TV really decoded it sideways: a landscape frame for a portrait video. */
+  function noteTurn() {
+    if (!videoItem || !videoTurn || !video.videoWidth || video.videoWidth <= video.videoHeight) { return; }
+    if (turnNoted === videoItem) { return; }
+    turnNoted = videoItem;
+    toast('Filmed upright: this TV plays it sideways');
   }
 
   function playVideo() {
@@ -432,7 +435,6 @@ var Viewer = (function () {
     var was = !!videoItem;
     videoItem = null;
     videoTurn = null;
-    unturnVideo();
     unloadVideo();
     U.hide(video);
     U.hide(vinfo);

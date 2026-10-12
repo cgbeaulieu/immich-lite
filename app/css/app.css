@@ -397,6 +397,9 @@ b { font-weight: bold; }
 .v-arrow.prev .icon { -webkit-transform: rotate(180deg); transform: rotate(180deg); }
 .v-arrow.next { right: 36px; }
 #viewer-bar.hidden ~ .v-arrow { display: none; } /* they come and go with the info bar */
+/* After a few seconds without keys the controls fade out (viewer.js adds .idle). */
+#viewer-bar, .v-arrow, #viewer-progress { -webkit-transition: opacity 0.5s; transition: opacity 0.5s; }
+#viewer.idle #viewer-bar, #viewer.idle .v-arrow { opacity: 0; }
 #viewer-img.loading { opacity: 0.3; }
 #viewer-status { position: absolute; top: 44px; left: 0; right: 0; text-align: center; font-size: 24px; color: #ffd27b;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.9); }

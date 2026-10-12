@@ -1,6 +1,6 @@
 {
   "id": "com.cgbeaulieu.immichlite",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "vendor": "immich lite",
   "type": "web",
   "main": "index.html",
