@@ -74,12 +74,12 @@ If your TV is rooted with the [webOS Homebrew Channel](https://www.webosbrew.org
 | **Explore** | "On this day" memories, People, Places, and your Archive, Folders and Tags |
 | **Map** | Where your photos were taken, on a dark map like immich's, grouped into bubbles. Point and click with the Magic Remote |
 | **Favorites** | Photos you've starred, and star more with ▲ on the remote |
-| **Albums** | Your albums and the ones shared with you, oldest or newest first as set in immich |
+| **Albums** | Your albums and the ones shared with you, oldest or newest first as set in immich, or one way for all in Settings |
 | **Search** | immich's smart search: "beach", "dog in the snow" |
 | **Slideshow** | Turn the TV into a photo frame: all photos, favorites, memories, a person or an album, in order or shuffled, at your speed. The TV's screensaver stays away while it plays. **OK** pauses and shows where the photo was taken and who's in it |
 | **Viewer** | Full screen photos and videos, with controls that fade away after a few seconds. Zoom photos with the Magic Remote wheel, seek in videos. ▼ opens the details: date, place, camera, the people in it, star rating and Add to album |
 | **Partners** | Photos your partners share with you show in your timeline, as on immich's web app |
-| **Settings** | Library statistics, slideshow speed and order, grouping, thumbnail size, hide videos, play videos as they show, partner switches |
+| **Settings** | Library statistics, slideshow speed and order, grouping, thumbnail size, album order, hide videos, play videos as they show, partner switches |
 
 ## Screenshots
 

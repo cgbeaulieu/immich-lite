@@ -133,10 +133,17 @@
   }
 
   /* An album shows in the order its owner picked in immich (album options → Display
-     order): a trip reads oldest first, a running album newest first. */
+     order): a trip reads oldest first, a running album newest first. Settings' Album
+     order can put every album one way instead. Read as the album opens. */
+  function albumOrder(a) {
+    var o = Settings.get('albumOrder');
+    if (o === 'immich') { o = a.order; }
+    return o === 'asc' ? 'asc' : 'desc';
+  }
+
   function albumView(a) {
     return assetView('albums', a.albumName || 'Untitled album',
-      function () { return new TimelineSource({ albumId: a.id, order: a.order === 'asc' ? 'asc' : 'desc' }); },
+      function () { return new TimelineSource({ albumId: a.id, order: albumOrder(a) }); },
       { albumIds: [a.id] }, true, 'This album is empty');
   }
 

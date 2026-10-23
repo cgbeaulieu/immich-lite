@@ -15,6 +15,9 @@ var Settings = (function () {
       text: function (v) { return v === 'day' ? 'Day' : (v === 'month' ? 'Month' : 'No grouping'); } },
     { group: 'Photos', key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large', 'xlarge'], def: 'medium',
       text: function (v) { return v === 'xlarge' ? 'Extra large' : v.charAt(0).toUpperCase() + v.substr(1); } },
+    // 'immich': each album's own display order, as picked in immich's album options.
+    { group: 'Photos', key: 'albumOrder', label: 'Album order', values: ['immich', 'asc', 'desc'], def: 'immich',
+      text: function (v) { return v === 'asc' ? 'Oldest first' : (v === 'desc' ? 'Newest first' : 'As set in immich'); } },
     { group: 'Photos', key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
       text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } },
     // On: a video starts when the viewer comes to it, and a slideshow plays it through.
