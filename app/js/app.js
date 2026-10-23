@@ -132,9 +132,11 @@
       { isFavorite: true }, true, 'No favorites yet. In the photo viewer, press ▲ to add one.');
   }
 
+  /* An album shows in the order its owner picked in immich (album options → Display
+     order): a trip reads oldest first, a running album newest first. */
   function albumView(a) {
     return assetView('albums', a.albumName || 'Untitled album',
-      function () { return new TimelineSource({ albumId: a.id, order: 'desc' }); },
+      function () { return new TimelineSource({ albumId: a.id, order: a.order === 'asc' ? 'asc' : 'desc' }); },
       { albumIds: [a.id] }, true, 'This album is empty');
   }
 

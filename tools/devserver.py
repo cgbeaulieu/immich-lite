@@ -333,9 +333,11 @@ class Mock:
                 n = len(self.filtered(m))
                 if n:
                     out.append({"timeBucket": m + "-01T00:00:00.000Z", "count": n})
-            return self.send(out)
+            # order=asc (an album set to oldest first) flips the months and their photos.
+            return self.send(out[::-1] if self.arg("order") == "asc" else out)
         if path == "/api/timeline/bucket":
-            return self.send(self.columns(self.filtered((self.arg("timeBucket") or "")[:7]),
+            items = self.filtered((self.arg("timeBucket") or "")[:7])
+            return self.send(self.columns(items[::-1] if self.arg("order") == "asc" else items,
                                           self.arg("withStacked") == "true"))
         if path == "/api/assets" and method == "PUT":
             b = self.body()
@@ -696,7 +698,7 @@ class Mock:
                 "albumThumbnailAssetId": None if i == 3 else "%s-0-%d" % (self.MONTHS[i % 6], i),
                 "updatedAt": "2026-%02d-01T00:00:00.000Z" % (10 - i % 9),
                 "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9),
-                "shared": i in (1, 4)}
+                "shared": i in (1, 4), "order": "asc" if i == 2 else "desc"}  # Cabin weekend: oldest first
 
     def jpeg(self, name):
         with open(os.path.join(STOCK["dir"], name), "rb") as f:
