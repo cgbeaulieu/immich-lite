@@ -349,6 +349,7 @@ b { font-weight: bold; }
 .sl-options .pill { margin-bottom: 0; padding: 10px 24px; font-size: 22px; vertical-align: middle; }
 .sl-options .pill.on { color: #101018; background: #e9e9f0; font-weight: bold; }
 .sl-options .gap { display: inline-block; width: 40px; }
+.sl-credit { margin: 10px 0 0 12px; font-size: 18px; color: #7c7c88; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ======================================================================
    Map
@@ -411,6 +412,7 @@ b { font-weight: bold; }
 }
 #viewer-caption { float: left; max-width: 900px; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8); }
 #viewer-caption .v-date { font-size: 34px; font-weight: bold; }
+#viewer-caption .v-where { margin-top: 6px; font-size: 26px; color: #f2f2f6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #viewer-caption .v-meta { margin-top: 8px; font-size: 22px; color: #dcdce4; white-space: pre; }
 #viewer-caption .v-meta .star { color: #ffd27b; }
 #viewer-play { float: right; margin-top: 18px; }

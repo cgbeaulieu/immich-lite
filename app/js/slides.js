@@ -5,7 +5,7 @@ var Slides = (function () {
   'use strict';
 
   var SPEEDS = ['5', '8', '12', '20', '30', '60'];
-  var box, heroImgs, front = 0, title, sub, strip, rowEl, cards = [], opts = [];
+  var box, heroImgs, front = 0, title, sub, credit, strip, rowEl, cards = [], opts = [];
   var row = 0, col = 0, ocol = 0, active = false, handlers = null, sources = [], heroTimer = null, token = 0;
 
   function el(tag, cls, text) {
@@ -54,6 +54,8 @@ var Slides = (function () {
     rowEl.appendChild(strip);
     bottom.appendChild(rowEl);
     bottom.appendChild(optionsRow());
+    credit = el('div', 'sl-credit');
+    bottom.appendChild(credit);
     box.appendChild(bottom);
 
     var t = token;
@@ -76,6 +78,12 @@ var Slides = (function () {
     wrap.appendChild(el('span', 'opt-label', 'Order'));
     addOpt(wrap, 'In order', 'slideOrder', 'inorder');
     addOpt(wrap, 'Shuffle', 'slideOrder', 'shuffle', 'shuffle');
+    if (Music.available()) {
+      wrap.appendChild(el('span', 'gap'));
+      wrap.appendChild(el('span', 'opt-label', 'Music'));
+      addOpt(wrap, 'Off', 'slideMusic', 'off');
+      addOpt(wrap, 'On', 'slideMusic', 'on');
+    }
     return wrap;
   }
 
@@ -146,7 +154,9 @@ var Slides = (function () {
     title.textContent = s.name;
     sub.textContent = (s.sub ? s.sub + '   ·   ' : '') +
       (Settings.get('slideOrder') === 'shuffle' ? 'Shuffle' : 'In order') + '   ·   ' +
-      (Settings.get('slideSeconds') === '60' ? '1 minute' : Settings.get('slideSeconds') + ' seconds') + ' each';
+      (Settings.get('slideSeconds') === '60' ? '1 minute' : Settings.get('slideSeconds') + ' seconds') + ' each' +
+      (Music.available() && Settings.get('slideMusic') === 'on' ? '   ·   with music' : '');
+    credit.textContent = Music.available() && Settings.get('slideMusic') === 'on' ? 'Music: ' + Music.credits() : '';
     if (!s.hero || heroImgs[front].getAttribute('src') === s.hero) { return; }
     // Crossfade: load into the hidden image, then swap.
     next = 1 - front;

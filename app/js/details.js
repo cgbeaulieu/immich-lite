@@ -98,6 +98,18 @@ var Details = (function () {
     if (!playing) { peekTimer = setTimeout(load, PEEK_MS); }
   }
 
+  /* Where it was taken and who's in it, for the viewer's caption once the details are
+     loaded: "Banff, Alberta, Canada   ·   With Claire and Sam". '' until then. */
+  function where(it) {
+    var dto = it && cache[it.id], ex = (dto && dto.exifInfo) || {}, list = visiblePeople(dto), names = [], who = '', i;
+    for (i = 0; i < list.length; i++) { if (list[i].name) { names.push(list[i].name); } }
+    if (names.length > 4) { names = names.slice(0, 3).concat([(names.length - 3) + ' others']); }
+    if (names.length) {
+      who = 'With ' + (names.length === 1 ? names[0] : names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1]);
+    }
+    return join([join([ex.city, ex.state, ex.country], ', '), who], '   ·   ');
+  }
+
   // ---------- the panel ----------
 
   function open(it, barWasShown) {
@@ -438,7 +450,7 @@ var Details = (function () {
   }
 
   return {
-    init: init, photo: photo, open: open, close: close, key: key, rate: rate,
+    init: init, photo: photo, where: where, open: open, close: close, key: key, rate: rate,
     isOpen: function () { return shown; },
     digit: digit, stars: stars
   };

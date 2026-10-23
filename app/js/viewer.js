@@ -57,6 +57,7 @@ var Viewer = (function () {
     U.removeClass(root, 'idle');
     img.src = Grid.BLANK;
     stopVideo();
+    Music.release();
     U.hide(root);
     if (opts) {
       done = opts.onClose;
@@ -152,12 +153,14 @@ var Viewer = (function () {
     U.toggleClass(arrows.prev, 'hidden', !opts || index === 0);
   }
 
-  /* Bottom-left: the date big, then favorite, stars, position and stack on one line. */
+  /* Bottom-left: the date big, where it was and who's in it (once the details are in),
+     then favorite, stars, position and stack on one line. */
   function drawCaption() {
-    var it = opts.items[index], date = document.createElement('div'), meta = document.createElement('div'), parts = [], st;
+    var it = opts.items[index], date = document.createElement('div'), meta = document.createElement('div'), parts = [], st, where, line;
     date.className = 'v-date';
     date.textContent = U.fmtDateLong(it.date) || ' ';
     meta.className = 'v-meta';
+    where = Details.where(it);
     if (it.isFavorite) { parts.push('♥ Favorite'); }
     parts.push(opts.shuffle ? 'Shuffle' : (index + 1) + ' of ' + opts.items.length);
     if (stackItem) { parts.push('Stack ' + (stackPos + 1) + ' of ' + (stackList ? stackList.length : stackItem.stackCount)); }
@@ -170,6 +173,12 @@ var Viewer = (function () {
     meta.appendChild(document.createTextNode(parts.join('   ·   ')));
     caption.innerHTML = '';
     caption.appendChild(date);
+    if (where) {
+      line = document.createElement('div');
+      line.className = 'v-where';
+      line.textContent = where;
+      caption.appendChild(line);
+    }
     caption.appendChild(meta);
   }
 
@@ -224,15 +233,26 @@ var Viewer = (function () {
     st.width = '100%';
   }
 
+  /* Pausing a slideshow brings the info bar back, and fetches the photo's details so
+     the caption can say where it was and who's in it ("where was this?"). While it
+     plays, the TV's screensaver is held off and the music (if on) plays. */
   function setPlaying(on, quiet) {
-    var was = playing;
+    var was = playing, it = opts && opts.items[index];
     playing = on;
     okLabel = on ? 'Pause' : 'Slideshow';
     renderHint();
+    Awake.hold(on && !!opts);
+    if (on && opts) { Music.play(); } else { Music.pause(); }
     if (on) { U.hide(bar); }
+    else if (was && !quiet && it) { // quiet: closing, or a video took over
+      if (!Details.isOpen()) { U.show(bar); }
+      Details.photo(it, false);
+      drawCaption();
+    }
     schedule();
     if (!quiet && on !== was) {
-      toast(on ? 'Slideshow on, ' + Settings.get('slideSeconds') + ' seconds' + (opts && opts.shuffle ? ', shuffled' : '')
+      toast(on ? 'Slideshow on, ' + Settings.get('slideSeconds') + ' seconds' + (opts && opts.shuffle ? ', shuffled' : '') +
+                 '. OK pauses'
                : 'Slideshow paused');
     }
     if (videoItem) { drawVideoHint(); }
@@ -418,6 +438,7 @@ var Viewer = (function () {
     var p;
     if (!videoItem) { return; }
     if (!opts.videoUrlFor) { return cantPlay(); }
+    Music.release(); // old TVs have few decoders
     if (!video.getAttribute('src')) {
       video.src = opts.videoUrlFor(videoItem);
       status.textContent = 'Loading video...';

@@ -7,6 +7,10 @@ var Settings = (function () {
       text: function (v) { return v === '60' ? '1 minute' : v + ' seconds'; } },
     { group: 'Slideshow', key: 'slideOrder', label: 'Order', values: ['inorder', 'shuffle'], def: 'inorder',
       text: function (v) { return v === 'shuffle' ? 'Shuffle' : 'In order'; } },
+    // Only offered when the app has music in it (music.js).
+    { group: 'Slideshow', key: 'slideMusic', label: 'Music', values: ['off', 'on'], def: 'off',
+      when: function () { return Music.available(); },
+      text: function (v) { return v === 'on' ? 'On' : 'Off'; } },
     { group: 'Photos', key: 'groupBy', label: 'Group photos by', values: ['day', 'month', 'off'], def: 'day',
       text: function (v) { return v === 'day' ? 'Day' : (v === 'month' ? 'Month' : 'No grouping'); } },
     { group: 'Photos', key: 'tileSize', label: 'Thumbnail size', values: ['small', 'medium', 'large', 'xlarge'], def: 'medium',
@@ -61,6 +65,7 @@ var Settings = (function () {
     }
 
     for (i = 0; i < OPTIONS.length; i++) {
+      if (OPTIONS[i].when && !OPTIONS[i].when()) { continue; }
       if (OPTIONS[i].group !== group) {
         group = OPTIONS[i].group;
         box.appendChild(el('div', 'set-section', group));
