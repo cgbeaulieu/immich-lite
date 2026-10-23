@@ -17,6 +17,9 @@ var Settings = (function () {
       text: function (v) { return v === 'xlarge' ? 'Extra large' : v.charAt(0).toUpperCase() + v.substr(1); } },
     { group: 'Photos', key: 'showVideos', label: 'Videos in timeline and albums', values: ['show', 'hide'], def: 'show',
       text: function (v) { return v === 'show' ? 'Show' : 'Hide'; } },
+    // On: a video starts when the viewer comes to it, and a slideshow plays it through.
+    { group: 'Photos', key: 'videoAutoplay', label: 'Play videos', values: ['off', 'on'], def: 'off',
+      text: function (v) { return v === 'on' ? 'As soon as they show' : 'When I press OK'; } },
     // Read when Photos or the map opens, so a change shows the next time they open.
     { group: 'Photos', key: 'withPartners', label: 'Partner photos in Photos and Map', values: ['on', 'off'], def: 'on',
       text: function (v) { return v === 'on' ? 'On' : 'Off'; } }

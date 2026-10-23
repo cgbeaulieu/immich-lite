@@ -431,12 +431,30 @@ class Mock:
             if path.split("/")[3].startswith("2025-12"):
                 return self.h.send_json(404, {"message": "Mock video missing", "statusCode": 404})
             raw = mock_video()
-            self.h.send_response(200)
+            # Answer range requests as immich does: without them the browser can't seek.
+            first, last, part = 0, len(raw) - 1, False
+            want = self.h.headers.get("Range", "")
+            if want.startswith("bytes=") and "," not in want:
+                a, _, b = want[6:].partition("-")
+                try:
+                    if a:
+                        first, last = int(a), min(int(b), last) if b else last
+                    else:
+                        first = max(0, len(raw) - int(b))  # the last b bytes
+                    part = first <= last
+                except ValueError:
+                    pass
+            if not part:
+                first, last = 0, len(raw) - 1
+            self.h.send_response(206 if part else 200)
+            if part:
+                self.h.send_header("Content-Range", "bytes %d-%d/%d" % (first, last, len(raw)))
+            self.h.send_header("Accept-Ranges", "bytes")
             self.h.send_header("Content-Type", "video/mp4")
-            self.h.send_header("Content-Length", str(len(raw)))
+            self.h.send_header("Content-Length", str(last - first + 1))
             self.h.end_headers()
             if method != "HEAD":
-                self.h.wfile.write(raw)
+                self.h.wfile.write(raw[first:last + 1])
             return None
         if path.startswith("/api/assets/") and path.count("/") == 3 and method == "GET":
             info = self.asset_info(path.split("/")[3])
