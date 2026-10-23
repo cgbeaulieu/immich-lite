@@ -74,12 +74,12 @@ If your TV is rooted with the [webOS Homebrew Channel](https://www.webosbrew.org
 | **Explore** | "On this day" memories, People, Places, and your Archive, Folders and Tags |
 | **Map** | Where your photos were taken, on a dark map like immich's, grouped into bubbles. Point and click with the Magic Remote |
 | **Favorites** | Photos you've starred, and star more with ▲ on the remote |
-| **Albums** | Your albums and the ones shared with you |
+| **Albums** | Your albums and the ones shared with you, oldest or newest first as set in immich |
 | **Search** | immich's smart search: "beach", "dog in the snow" |
 | **Slideshow** | Turn the TV into a photo frame: all photos, favorites, memories, a person or an album, in order or shuffled, at your speed. The TV's screensaver stays away while it plays. **OK** pauses and shows where the photo was taken and who's in it |
-| **Viewer** | Full screen photos and videos, with controls that fade away after a few seconds. ▼ opens the details: date, place, camera, the people in it, star rating and Add to album |
+| **Viewer** | Full screen photos and videos, with controls that fade away after a few seconds. Zoom photos with the Magic Remote wheel, seek in videos. ▼ opens the details: date, place, camera, the people in it, star rating and Add to album |
 | **Partners** | Photos your partners share with you show in your timeline, as on immich's web app |
-| **Settings** | Library statistics, slideshow speed and order, grouping, thumbnail size, hide videos, partner switches |
+| **Settings** | Library statistics, slideshow speed and order, grouping, thumbnail size, hide videos, play videos as they show, partner switches |
 
 ## Screenshots
 
@@ -122,7 +122,8 @@ If your TV is rooted with the [webOS Homebrew Channel](https://www.webosbrew.org
 Create the key in immich under **Account Settings → API Keys**. A key with **all permissions** is simplest. To limit it, the app needs:
 `user.read`, `asset.read`, `asset.view`, `asset.update` (favorites, ratings), `album.read`, `albumAsset.create` (Add to album), `person.read`, `memory.read`, `map.read`, `stack.read`,
 `folder.read`, `tag.read`, `partner.read` and `partner.update` (partner photos),
-`asset.statistics` and `server.storage` (statistics in Settings; without them those lines are left out).
+`asset.statistics` and `server.storage` (statistics in Settings; without them those lines are left out),
+and `asset.download` (sharp zoom: without it, zooming enlarges the screen-sized preview).
 
 </details>
 
@@ -140,8 +141,8 @@ Photos shared with you through immich's partner sharing (**Account Settings → 
 | Anywhere | Arrows move, **OK** opens, **Back** goes back, **Play** starts a slideshow of what's focused |
 | Sidebar | **Left** from the edge of a page (or Back on a top page) opens it |
 | Photo grids | **CH+ / CH−** jump three rows |
-| Photo viewer | **◀ ▶** previous / next, **OK** slideshow on/off (pausing shows the date, place and people), **▲** favorite, **▼** details, **1–5** star rating (**0** clears), **CH+ / CH−** step through a stack |
-| Videos | **OK**, **Play** and **Pause** play and pause; **◀ ▶** move on |
+| Photo viewer | **◀ ▶** previous / next, **OK** slideshow on/off (pausing shows the date, place and people), **▲** favorite, **▼** details, **1–5** star rating (**0** clears), **CH+ / CH−** step through a stack, Magic Remote **wheel** zooms (then drag or arrows move, **Back** fits) |
+| Videos | **OK**, **Play** and **Pause** play and pause; **⏪ ⏩** jump 10 seconds; **◀ ▶** jump 10 seconds while playing, move on while paused; click the time line to jump there |
 | Map | Arrows move, **CH+ / CH−** zoom, **OK** opens the bubble nearest the centre |
 
 **Magic Remote:** point and click anywhere. On the map, point at a bubble and click it, scroll to zoom, drag to move.
