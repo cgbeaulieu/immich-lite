@@ -14,6 +14,7 @@ Then open http://<this-pc>:8000/ . The capability probe is at /capabilities.html
 import argparse
 import hashlib
 import http.server
+import io
 import json
 import os
 import random
@@ -22,7 +23,7 @@ import socket
 import struct
 import urllib.error
 import urllib.request
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, quote, urlsplit
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_DIR = os.path.join(ROOT, "app")
@@ -232,6 +233,7 @@ class Server(http.server.ThreadingHTTPServer):
 # {"dir", "photos": [{"thumb", "preview", "ratio"}], "faces": [file per PEOPLE entry], "slot": {asset id: index}}.
 # None shows coloured squares instead.
 STOCK = None
+FULL_CACHE = {}  # preview file -> the enlarged JPEG served as its original (the last few)
 
 FAVORITES = {}  # asset id -> bool, set through PUT /api/assets while the mock runs
 RATINGS = {}    # asset id -> 1..5, -1 or None, set through PUT /api/assets
@@ -422,10 +424,17 @@ class Mock:
             return self.send([self.tag(i) for i in range(len(self.TAGS))])
         if path.startswith("/api/assets/") and path.endswith("/thumbnail"):
             asset_id, big = path.split("/")[3], self.arg("size") == "preview"
+            if self.arg("size") == "fullsize":
+                # As immich does for a JPEG original: a redirect to the original file,
+                # keeping the query (the key) but not the size.
+                query = [(k, v) for k, vs in self.query.items() if k != "size" for v in vs]
+                return self.redirect("original?" + "&".join("%s=%s" % (quote(k), quote(v)) for k, v in query))
             if STOCK:
                 return self.jpeg(self.photo_of(asset_id)["preview" if big else "thumb"])
             return self.svg(1440 if big else 250, 960 if big else 250,
                             int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 64 if big else 22)
+        if path.startswith("/api/assets/") and path.endswith("/original"):
+            return self.original(path.split("/")[3])
         if path.startswith("/api/assets/") and path.endswith("/video/playback"):
             # Videos from December 2025 fail, to try the app's "can't play" fallback.
             if path.split("/")[3].startswith("2025-12"):
@@ -718,14 +727,44 @@ class Mock:
                 "lastModifiedAssetTimestamp": "2026-%02d-15T00:00:00.000Z" % (10 - i % 9),
                 "shared": i in (1, 4), "order": "asc" if i == 2 else "desc"}  # Cabin weekend: oldest first
 
+    def original(self, asset_id):
+        """GET /api/assets/{id}/original: the mock has no originals, so it enlarges the preview
+        to the size asset_info reports (4032 pixels on the long side), for trying zoom."""
+        if not STOCK:
+            return self.svg(4320, 2880, int(hashlib.md5(asset_id.encode()).hexdigest(), 16) % 360, asset_id, 192)
+        name, r = self.photo_of(asset_id)["preview"], self.ratio_of(asset_id)
+        raw = FULL_CACHE.get(name)
+        if raw is None:
+            try:
+                from PIL import Image
+            except ImportError:
+                return self.jpeg(name)  # without Pillow, the preview itself
+            w, h = (4032, int(round(4032 / r))) if r >= 1 else (int(round(4032 * r)), 4032)
+            out = io.BytesIO()
+            Image.open(os.path.join(STOCK["dir"], name)).convert("RGB").resize((w, h), Image.LANCZOS) \
+                .save(out, "JPEG", quality=90)
+            raw = FULL_CACHE[name] = out.getvalue()
+            while len(FULL_CACHE) > 6:
+                del FULL_CACHE[next(iter(FULL_CACHE))]
+        return self.image(raw, "image/jpeg")
+
+    def redirect(self, location):
+        self.h.send_response(302)
+        self.h.send_header("Location", location)
+        self.h.send_header("Content-Length", "0")
+        self.h.end_headers()
+
     def jpeg(self, name):
         with open(os.path.join(STOCK["dir"], name), "rb") as f:
-            raw = f.read()
+            self.image(f.read(), "image/jpeg")
+
+    def image(self, raw, ctype):
         self.h.send_response(200)
-        self.h.send_header("Content-Type", "image/jpeg")
+        self.h.send_header("Content-Type", ctype)
         self.h.send_header("Content-Length", str(len(raw)))
         self.h.end_headers()
-        self.h.wfile.write(raw)
+        if self.h.command != "HEAD":
+            self.h.wfile.write(raw)
 
     def svg(self, w, h, hue, text, font_size):
         svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d">'

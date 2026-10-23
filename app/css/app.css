@@ -429,6 +429,16 @@ b { font-weight: bold; }
   background: rgba(18, 18, 24, 0.9); border-radius: 999px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
+/* Zoom (viewer.js): the level, top right, fading with the controls. The arrows go while
+   zoomed: the photo has the screen, and Back returns to fit. */
+#viewer-zoom {
+  position: absolute; top: 44px; right: 56px; padding: 12px 28px; white-space: pre;
+  font-size: 26px; font-weight: bold; color: #fff; background: rgba(18, 18, 24, 0.9); border-radius: 999px;
+  -webkit-transition: opacity 0.5s; transition: opacity 0.5s;
+}
+#viewer.idle #viewer-zoom { opacity: 0; }
+#viewer.zoomed .v-arrow { display: none; }
+
 /* Video: made by viewer.js. Hidden until it plays, so the still shows while it loads. */
 #viewer-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #000; }
 #viewer-vinfo { overflow: hidden; margin-bottom: 8px; }

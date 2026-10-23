@@ -17,11 +17,12 @@ var Viewer = (function () {
     status = U.$('viewer-status');
     toastEl = U.$('viewer-toast');
     progress = U.$('viewer-progress-fill');
-    root.onclick = function () { next(); }; // Magic Remote click
+    root.onclick = function () { if (zoomScale === 1) { next(); } }; // Magic Remote click (zoomed, it ends a drag)
     root.onmousemove = function () { wake(); };
     initArrows();
     initStack();
     initVideo();
+    initZoom();
     Details.init(root, toastEl, {
       client: function () { return opts && opts.client; },
       redraw: function () { if (opts) { drawCaption(); } },
@@ -53,6 +54,7 @@ var Viewer = (function () {
     setPlaying(false, true);
     U.hide(toastEl);
     photoToken++;
+    resetZoom();
     clearTimeout(idleTimer);
     U.removeClass(root, 'idle');
     img.src = Grid.BLANK;
@@ -102,6 +104,7 @@ var Viewer = (function () {
      the old size (or the full screen) for a moment before it fit. */
   function loadPhoto(src) {
     var t = ++photoToken, pre = new Image();
+    resetZoom(); // each photo starts at fit
     U.addClass(img, 'loading');
     pre.onload = function () {
       if (t !== photoToken) { return; } // moved on meanwhile
@@ -188,6 +191,7 @@ var Viewer = (function () {
   function renderHint() {
     var list = [['◀ ▶', videoSeeks() ? 'Seek' : 'Browse'], ['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
     if (stackItem) { list.push(['CH', 'Stack']); }
+    if (zoomScale > 1) { list = zoomHints(); }
     hint.innerHTML = '';
     for (i = 0; i < list.length; i++) {
       h = document.createElement('span');
@@ -338,6 +342,7 @@ var Viewer = (function () {
 
   function key(k) {
     wake();
+    if (zoomScale > 1 && zoomKey(k)) { return true; }
     var n = Details.digit(k);
     if (n !== -1) { if (opts && opts.items[index]) { Details.rate(opts.items[index], n); } return true; }
     // The open panel takes every key but Stop, so nothing changes under it.
@@ -356,6 +361,306 @@ var Viewer = (function () {
       case KEY.CH_DOWN: return stepStack(-1);
     }
     return false;
+  }
+
+  // ---------- zoom ----------
+
+  /* The Magic Remote's wheel zooms a photo in steps, toward the pointer, so the spot
+     under it stays put. Dragging or the arrows move around; Back or OK go back to fit.
+     The preview (about 1440 pixels) goes soft when enlarged, so the first zoom fetches
+     the full-size image and shows the enlarged preview until it's in. Moving on drops
+     it: a 12-megapixel photo takes about 48 MB once decoded. Videos don't zoom (the TV
+     draws them on a plane of its own).
+
+     How it's drawn: each step gives the <img> its zoomed width and height, so the engine
+     draws the photo sharp at that size, once per step, and a translate3d transform places
+     it. The transform puts the photo on a layer of its own that the GPU moves, so a drag
+     or an arrow press only moves that layer: no relayout, no redraw. Zooming with a
+     scale() transform instead risks the old engine enlarging the layer it drew at fit
+     (soft), and moving with left/top would redraw the whole screen on every step. */
+  var ZOOM_STEPS = [1, 1.5, 2, 3, 4];
+  var ZOOM_LEAST = 2;           // the deepest zoom is the photo's own size, but at least this
+  var FULL_MAX_PIXELS = 25e6;   // bigger originals stay on the preview (4 bytes a pixel decoded)
+  var WHEEL_MS = 150;           // at most one step this often: each one redraws the photo
+  var zoomScale = 1;            // 1 is fit
+  var zoomTop = 4, zx = 0, zy = 0, fw = 0, fh = 0, fitBox = null, zoomToken = 0, zoomHinted = false;
+  var full = null;              // {url, preview, state: 'asking' | 'loading' | 'shown' | 'preview', loader}
+  var zdrag = null, zpointing = false, zmoving = false, wheelTimer = null, wheelNext = null, zoomBadge;
+
+  function initZoom() {
+    zoomBadge = document.createElement('div');
+    zoomBadge.id = 'viewer-zoom';
+    zoomBadge.className = 'hidden';
+    root.appendChild(zoomBadge);
+    root.addEventListener('mousewheel', onWheel, false);
+    root.addEventListener('mousedown', function (e) {
+      if (zoomScale === 1) { return; }
+      zdrag = { x: e.clientX, y: e.clientY, moved: false };
+      e.preventDefault(); // or the browser drags off a copy of the image
+    }, false);
+    root.addEventListener('mousemove', function (e) {
+      var d = zdrag;
+      zpointing = true;
+      if (!d) { return; }
+      if (!d.moved && Math.abs(e.clientX - d.x) + Math.abs(e.clientY - d.y) < 4) { return; }
+      d.moved = true;
+      zx += e.clientX - d.x;
+      zy += e.clientY - d.y;
+      d.x = e.clientX;
+      d.y = e.clientY;
+      queueMove();
+    }, false);
+    window.addEventListener('mouseup', function () { zdrag = null; }, false);
+    // webOS hides the pointer when a key is pressed or it's left still.
+    document.addEventListener('cursorStateChange', function (e) {
+      if (e.detail && e.detail.visibility === false) { zpointing = false; }
+    }, false);
+  }
+
+  /* The photo on screen: the timeline's, or the stack member CH moved to. */
+  function shownItem() {
+    return opts ? (stackList && stackList[stackPos]) || opts.items[index] : null;
+  }
+
+  /* A photo that has loaded (not a video, not one that failed), with the details panel shut. */
+  function zoomable() {
+    var it = shownItem(), src = img.getAttribute('src');
+    return !!(it && it.isImage && !videoItem && !Details.isOpen() && src &&
+      (src === opts.urlFor(it) || (full && src === full.url)));
+  }
+
+  /* One step per wheel notch, at most one every WHEEL_MS; a notch turned meanwhile waits
+     its turn (only the last one: a fast spin shouldn't run away). */
+  function onWheel(e) {
+    var r, dir = e.wheelDelta > 0 ? 1 : (e.wheelDelta < 0 ? -1 : 0);
+    if (!dir || !zoomable()) { return; }
+    e.preventDefault();
+    wake();
+    r = root.getBoundingClientRect();
+    wheelNext = { dir: dir, x: e.clientX - r.left, y: e.clientY - r.top };
+    if (!wheelTimer) { wheelTick(); }
+  }
+
+  function wheelTick() {
+    var w = wheelNext;
+    wheelNext = null;
+    wheelTimer = null;
+    if (!w) { return; }
+    zoomStep(w.dir, w.x, w.y);
+    wheelTimer = setTimeout(wheelTick, WHEEL_MS);
+  }
+
+  /* Fit, the steps and the deepest zoom. A step just short of the deepest is left out,
+     so the last one isn't a nudge. */
+  function zoomSteps() {
+    var out = [], i;
+    for (i = 0; i < ZOOM_STEPS.length && ZOOM_STEPS[i] < zoomTop * 0.87; i++) { out.push(ZOOM_STEPS[i]); }
+    out.push(zoomTop);
+    return out;
+  }
+
+  function zoomStep(dir, px, py) {
+    var steps = zoomSteps(), s = zoomScale, to = s, i;
+    if (dir > 0) {
+      for (i = 0; i < steps.length; i++) { if (steps[i] > s + 0.01) { to = steps[i]; break; } }
+    } else {
+      for (i = steps.length - 1; i >= 0; i--) { if (steps[i] < s - 0.01) { to = steps[i]; break; } }
+    }
+    if (to !== s) { zoomTo(to, px, py); }
+  }
+
+  /* s: the new scale (1 is fit). px, py: the screen point that stays put. */
+  function zoomTo(s, px, py) {
+    var s0 = zoomScale;
+    if (s <= 1) { return unzoom(); }
+    if (s0 === 1) { startZoom(); }
+    zx = px - (px - zx) * s / s0;
+    zy = py - (py - zy) * s / s0;
+    zoomScale = s;
+    place();
+    drawZoom();
+  }
+
+  /* Leaving fit: remember the fitted box, pause a slideshow, fetch the full-size image. */
+  function startZoom() {
+    var st = img.style;
+    fitBox = { w: st.width, h: st.height, l: st.left, t: st.top };
+    fw = img.offsetWidth;
+    fh = img.offsetHeight;
+    zx = img.offsetLeft;
+    zy = img.offsetTop;
+    if (playing) { setPlaying(false); }
+    if (!full) { loadFull(shownItem()); }
+  }
+
+  /* The zoomed size, then where it sits. */
+  function place() {
+    var st = img.style;
+    st.width = Math.round(fw * zoomScale) + 'px';
+    st.height = Math.round(fh * zoomScale) + 'px';
+    st.left = st.top = '0';
+    move();
+  }
+
+  /* Keeps the photo over the screen: centred on a side it doesn't fill, and with no gap
+     at an edge on a side it does. */
+  function move() {
+    var W = root.clientWidth, H = root.clientHeight, w = Math.round(fw * zoomScale), h = Math.round(fh * zoomScale);
+    var st = img.style, t;
+    zx = w <= W ? (W - w) / 2 : Math.max(W - w, Math.min(0, zx));
+    zy = h <= H ? (H - h) / 2 : Math.max(H - h, Math.min(0, zy));
+    t = 'translate3d(' + Math.round(zx) + 'px, ' + Math.round(zy) + 'px, 0)';
+    st.webkitTransform = t;
+    st.transform = t;
+  }
+
+  /* Pointer moves come faster than an old TV draws: one move per frame. */
+  function queueMove() {
+    var run = function () { zmoving = false; if (zoomScale > 1) { move(); } };
+    if (zmoving) { return; }
+    zmoving = true;
+    if (window.requestAnimationFrame) { window.requestAnimationFrame(run); } else { setTimeout(run, 16); }
+  }
+
+  function unzoom() {
+    var st = img.style;
+    if (zoomScale === 1) { return; }
+    zoomScale = 1;
+    zdrag = null;
+    st.webkitTransform = '';
+    st.transform = '';
+    st.width = fitBox.w;
+    st.height = fitBox.h;
+    st.left = fitBox.l;
+    st.top = fitBox.t;
+    drawZoom();
+  }
+
+  /* Another photo, or closing: back to fit, and let go of the full-size image so its
+     memory can be freed (the preview, still cached, stands in until the next photo). */
+  function resetZoom() {
+    zoomToken++;
+    wheelNext = null;
+    unzoom();
+    if (full) {
+      dropLoader();
+      if (full.state === 'shown') { img.src = full.preview; }
+      full = null;
+    }
+    zoomTop = ZOOM_STEPS[ZOOM_STEPS.length - 1];
+  }
+
+  /* The full-size image is immich's 'fullsize': for a JPEG, PNG, WebP or GIF that's the
+     original file itself. The photo's details come first, to leave alone two that would
+     go wrong (they stay on the preview, as does one that fails to load):
+     - an original stored turned, with an EXIF note saying so: this engine ignores the
+       note (newer ones obey it), so it would show sideways or upside down;
+     - a huge one, which could run the TV out of memory. */
+  function loadFull(it) {
+    var c = opts.client, t = zoomToken, url = c && c.thumbUrl && it ? c.thumbUrl(it.id, 'fullsize') : null;
+    full = { url: url, preview: img.getAttribute('src'), state: 'asking', loader: null };
+    if (!url || !c.asset) { return keepPreview(); }
+    c.asset(it.id, function (err, a) {
+      var ex = (a && a.exifInfo) || {}, w = ex.exifImageWidth || (a && a.width), h = ex.exifImageHeight || (a && a.height), pre;
+      if (t !== zoomToken) { return; } // moved on meanwhile
+      if (err || !a || w * h > FULL_MAX_PIXELS || (turned(a) && !engineTurns())) { return keepPreview(); }
+      if (w && h) { setTop(w, h); }
+      full.state = 'loading';
+      drawZoom();
+      pre = full.loader = new Image();
+      pre.onload = function () {
+        var pw = pre.naturalWidth, ph = pre.naturalHeight;
+        if (t !== zoomToken) { return; }
+        // Not the preview's shape: turned after all.
+        if (!pw || !ph || Math.abs(pw / ph - img.naturalWidth / img.naturalHeight) > 0.03 * pw / ph) { return keepPreview(); }
+        img.src = url; // cached now, and drawn into the same box, so it only gets sharper
+        full.state = 'shown';
+        full.loader = null;
+        setTop(pw, ph);
+        drawZoom();
+      };
+      pre.onerror = function () { if (t === zoomToken) { keepPreview(); } };
+      pre.src = url;
+    });
+  }
+
+  /* An original immich sends as it is, stored turned or mirrored (EXIF orientation). */
+  function turned(a) {
+    var o = String((a.exifInfo && a.exifInfo.orientation) || 1);
+    return o !== '1' && !a.isEdited && /\.(avif|gif|jpe?g|png|webp)$/i.test(a.originalPath || a.originalFileName || '');
+  }
+
+  /* Whether this engine turns photos by their EXIF note itself (Chrome 81 on, not the TV's). */
+  function engineTurns() {
+    var cs = window.getComputedStyle && window.getComputedStyle(img);
+    return !!cs && cs.imageOrientation === 'from-image';
+  }
+
+  function keepPreview() {
+    dropLoader();
+    full.state = 'preview';
+    setTop(img.naturalWidth, img.naturalHeight);
+    drawZoom();
+  }
+
+  function dropLoader() {
+    var pre = full.loader;
+    if (!pre) { return; }
+    full.loader = null;
+    pre.onload = pre.onerror = null;
+    pre.src = Grid.BLANK; // stops the download
+  }
+
+  /* The deepest zoom: one image pixel to one screen pixel, but at least ZOOM_LEAST (a
+     small photo still enlarges) and at most the last step. Zoomed past it already (before
+     the size was known), the photo stays as it is: no jump. */
+  function setTop(w, h) {
+    var own = Math.max(w, h) / (Math.max(fw, fh) * (window.devicePixelRatio || 1));
+    own = Math.max(ZOOM_LEAST, Math.min(ZOOM_STEPS[ZOOM_STEPS.length - 1], own || 0));
+    zoomTop = Math.floor(own * 10 + 0.001) / 10; // a tenth, rounded down: never past the photo's own size
+  }
+
+  /* Keys while zoomed: the arrows move a quarter screen, OK and Back go back to fit, Play
+     goes back to fit and starts the slideshow. A remote click can also send OK, so OK
+     while the pointer is in use is taken as that click, which does nothing here. */
+  function zoomKey(k) {
+    var W = root.clientWidth / 4, H = root.clientHeight / 4;
+    switch (k) {
+      case KEY.LEFT: return pan(W, 0);
+      case KEY.RIGHT: return pan(-W, 0);
+      case KEY.UP: return pan(0, H);
+      case KEY.DOWN: return pan(0, -H);
+      case KEY.OK: if (!zpointing) { unzoom(); } return true;
+      case KEY.BACK: case KEY.ESC: case KEY.BACKSPACE: unzoom(); return true;
+      case KEY.PLAY: unzoom(); return false;
+    }
+    return false;
+  }
+
+  function pan(dx, dy) {
+    zpointing = false;
+    zx += dx;
+    zy += dy;
+    move();
+    return true;
+  }
+
+  /* The zoom level, top right, and while zoomed the key hints say how to move and get out. */
+  function drawZoom() {
+    var on = zoomScale > 1;
+    U.toggleClass(root, 'zoomed', on);
+    U.toggleClass(zoomBadge, 'hidden', !on);
+    if (on) {
+      zoomBadge.textContent = (Math.round(zoomScale * 10) / 10) + '×' +
+        (full && full.state === 'loading' ? '   ·   Loading full size' : '');
+    }
+    if (on !== zoomHinted) { zoomHinted = on; renderHint(); }
+  }
+
+  function zoomHints() {
+    var list = [['Scroll', 'Zoom'], ['◀ ▲ ▼ ▶', 'Move'], ['Back', 'Fit']];
+    if (stackItem) { list.push(['CH', 'Stack']); }
+    return list;
   }
 
   // ---------- video ----------

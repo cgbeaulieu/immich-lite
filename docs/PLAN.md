@@ -56,6 +56,7 @@ No build step. The files in `app/` are what ships.
 | Assets in an album | the same two timeline calls with `albumId=...` |
 | Grid image | `GET /api/assets/{id}/thumbnail?size=thumbnail` (small webp) |
 | Full-screen image | `GET /api/assets/{id}/thumbnail?size=preview` (large jpeg, right for 1080p) |
+| Zoomed-in image | `GET /api/assets/{id}/thumbnail?size=fullsize`, fetched on the first zoom only. For a JPEG, PNG, WebP or GIF, immich redirects to `/assets/{id}/original` (the file as uploaded, which needs `asset.download`; its EXIF orientation isn't applied by the TV's engine, so the viewer keeps such turned photos on the preview); for others it's a JPEG it made, or the preview |
 | Video | `GET /api/assets/{id}/video/playback` (the transcoded copy, H.264 MP4 by default; range requests supported) as a `<video>` src. Length is the bucket's `duration[]` column, in ms in v3 (older servers sent `"H:MM:SS.sss"`; both are parsed) |
 
 **Auth:** the API key goes in the `?apiKey=` query parameter. The server accepts it there as well as in the `x-api-key` header (`server/src/services/auth.service.ts`). This lets `<img>` tags load thumbnails directly, since they can't send headers, and it keeps JSON calls free of CORS preflights. The trade-off is that the key can show up in server or proxy access logs. That's acceptable on a home LAN.
@@ -81,7 +82,7 @@ More endpoints used for Explore, Search, Map and Favorites:
 | Rating | `PUT /api/assets {ids, rating}`: 1-5, or `null` to clear (v3 rejects 0). Saves go out one at a time so quick presses land in order |
 | Add to album | `PUT /api/albums/{id}/assets {ids}` answers `[{id, success, error}]`; `error: 'duplicate'` means it was already there |
 
-**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `albumAsset.create`, `person.read`, `memory.read`, `map.read`, `stack.read`, `folder.read`, `tag.read`, `asset.statistics`, `server.storage`, `partner.read`, `partner.update`. A key with all permissions also works.
+**API key permissions:** `user.read`, `asset.read`, `asset.view`, `asset.update`, `album.read`, `albumAsset.create`, `person.read`, `memory.read`, `map.read`, `stack.read`, `folder.read`, `tag.read`, `asset.statistics`, `server.storage`, `partner.read`, `partner.update`, and `asset.download` for sharp zooming (without it, zoom enlarges the preview). A key with all permissions also works.
 
 Both `PUT /api/assets` and `PUT /api/assets/{id}` are marked deprecated in v3.3.1, with no replacement in that version yet. The app uses the bulk one (favorites and ratings); check this when immich ships the replacement.
 
