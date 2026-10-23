@@ -40,7 +40,7 @@ var Viewer = (function () {
     U.show(root);
     U.show(bar);
     wake();
-    playing = !!o.autoplay; // so a slideshow that starts on a video skips it
+    playing = !!o.autoplay; // so a slideshow that starts on a video skips it (or plays it through)
     show(o.index, 1);
     playing = false;
     setPlaying(!!o.autoplay);
@@ -66,9 +66,10 @@ var Viewer = (function () {
     }
   }
 
-  /* dir is the way we're moving (1 or -1); a playing slideshow skips videos that way. */
+  /* dir is the way we're moving (1 or -1); a playing slideshow skips videos that way,
+     unless videos play by themselves (then it plays them through). */
   function show(i, dir) {
-    var items = opts.items, it;
+    var items = opts.items, it, was;
     if (i < 0) { return; }
     if (i >= items.length) {
       // Past the last loaded photo: load more, then try again.
@@ -79,12 +80,13 @@ var Viewer = (function () {
       return;
     }
     it = items[i];
-    if (playing && !it.isImage) { return show(i + dir, dir); }
+    if (playing && !it.isImage && !autoplayOn()) { return show(i + dir, dir); }
     index = i;
     resetStack(it);
     status.textContent = '';
-    if (stopVideo()) { setPlaying(playing, true); } // puts the photo hint back
+    was = stopVideo();
     if (!it.isImage) { showVideo(it); }
+    if (was) { setPlaying(playing, true); } // puts the photo hint and a slideshow's music back
     drawCaption();
     Details.photo(it, playing);
     drawArrows();
@@ -184,7 +186,7 @@ var Viewer = (function () {
 
   /* Bottom-right: what the keys do, as keycaps. */
   function renderHint() {
-    var list = [['◀ ▶', 'Browse'], ['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
+    var list = [['◀ ▶', videoSeeks() ? 'Seek' : 'Browse'], ['OK', okLabel], ['▲', 'Favorite'], ['▼', 'Details']], i, h, cap;
     if (stackItem) { list.push(['CH', 'Stack']); }
     hint.innerHTML = '';
     for (i = 0; i < list.length; i++) {
@@ -216,6 +218,7 @@ var Viewer = (function () {
      loads don't skip photos. */
   function schedule() {
     clearTimeout(timer);
+    if (slideVideo()) { return runProgress(0); } // the video's end moves the slideshow on
     runProgress(playing && opts ? Settings.slideMs() : 0);
     if (playing && opts) { timer = setTimeout(next, Settings.slideMs()); }
   }
@@ -235,14 +238,15 @@ var Viewer = (function () {
 
   /* Pausing a slideshow brings the info bar back, and fetches the photo's details so
      the caption can say where it was and who's in it ("where was this?"). While it
-     plays, the TV's screensaver is held off and the music (if on) plays. */
+     plays, the TV's screensaver is held off and the music (if on) plays, except
+     while the slideshow plays a video, which has the sound. */
   function setPlaying(on, quiet) {
     var was = playing, it = opts && opts.items[index];
     playing = on;
     okLabel = on ? 'Pause' : 'Slideshow';
     renderHint();
     Awake.hold(on && !!opts);
-    if (on && opts) { Music.play(); } else { Music.pause(); }
+    if (on && opts && !slideVideo()) { Music.play(); } else { Music.pause(); }
     if (on) { U.hide(bar); }
     else if (was && !quiet && it) { // quiet: closing, or a video took over
       if (!Details.isOpen()) { U.show(bar); }
@@ -361,10 +365,10 @@ var Viewer = (function () {
      TV can't play the file. Nothing is fetched until the video is played, so stepping
      past videos stays cheap. opts.videoUrlFor(item) gives the video's address.
      The elements are made here, not in index.html, to keep the video code together. */
-  var video, vinfo, vtime, vfill, videoItem = null;
+  var video, vinfo, vtime, vfill, videoItem = null, videoBroken = false;
 
   function initVideo() {
-    var line = document.createElement('div');
+    var line = document.createElement('div'), hit = document.createElement('div');
     video = document.createElement('video');
     video.id = 'viewer-video';
     video.className = 'hidden';
@@ -380,11 +384,16 @@ var Viewer = (function () {
     vfill.id = 'viewer-vfill';
     line.id = 'viewer-vline';
     line.appendChild(vfill);
+    // The line is thin for the Magic Remote, so a taller see-through strip takes its clicks.
+    hit.id = 'viewer-vhit';
+    hit.appendChild(line);
+    hit.onclick = function (e) { clickLine(e, line); };
     vinfo.appendChild(vtime);
-    vinfo.appendChild(line);
+    vinfo.appendChild(hit);
     bar.insertBefore(vinfo, bar.firstChild);
 
-    video.addEventListener('loadedmetadata', function () { noteTurn(); }, false); // frame size known now
+    // Frame size and length known now: a sideways note, a pending jump, and ◀ ▶ can seek.
+    video.addEventListener('loadedmetadata', function () { noteTurn(); startFrom(); drawVideoHint(); }, false);
     video.addEventListener('playing', function () {
       if (videoItem) { U.show(video); status.textContent = ''; }
     }, false);
@@ -393,7 +402,7 @@ var Viewer = (function () {
     }, false);
     video.addEventListener('play', drawVideoHint, false);
     video.addEventListener('pause', drawVideoHint, false);
-    video.addEventListener('ended', drawVideoHint, false);
+    video.addEventListener('ended', videoEnded, false);
     video.addEventListener('timeupdate', drawVideoTime, false);
     video.addEventListener('durationchange', drawVideoTime, false);
     video.addEventListener('error', videoFailed, false);
@@ -402,10 +411,35 @@ var Viewer = (function () {
   function showVideo(it) {
     videoItem = it;
     videoTurn = null;
+    videoBroken = false;
     U.show(vinfo);
     drawVideoTime();
     drawVideoHint();
     findVideoTurn(it);
+    // Started once the remote rests here a moment, so skipping past a few videos
+    // doesn't load each one (old TVs have one decoder).
+    if (autoplayOn()) {
+      autoTimer = setTimeout(function () {
+        if (videoItem === it && !Details.isOpen()) { playVideo(); }
+      }, AUTOPLAY_MS);
+    }
+  }
+
+  /* Settings 'Play videos': 'on' starts a video as soon as it shows, and a slideshow in
+     order plays it through instead of skipping it. Only where the viewer has a video
+     address (the Slideshow page's slideshows are photos only). */
+  var AUTOPLAY_MS = 600, autoTimer = null;
+
+  function autoplayOn() { return !!(opts && opts.videoUrlFor) && Settings.get('videoAutoplay') === 'on'; }
+
+  /* A playing slideshow on a video it plays through: no slide timer and no music then,
+     and the video's end moves it on. Not once the video has failed: that still stays
+     the usual time, like a photo. */
+  function slideVideo() { return playing && !!videoItem && !videoBroken && autoplayOn(); }
+
+  function videoEnded() {
+    drawVideoHint();
+    if (slideVideo() && video.getAttribute('src')) { next(); }
   }
 
   /* Phones record portrait video as landscape frames plus a rotation flag. The TV's
@@ -437,7 +471,10 @@ var Viewer = (function () {
   function playVideo() {
     var p;
     if (!videoItem) { return; }
+    clearTimeout(autoTimer);
     if (!opts.videoUrlFor) { return cantPlay(); }
+    videoBroken = false;
+    if (playing) { schedule(); } // trying a failed one again: the slideshow waits for it now
     Music.release(); // old TVs have few decoders
     if (!video.getAttribute('src')) {
       video.src = opts.videoUrlFor(videoItem);
@@ -456,6 +493,8 @@ var Viewer = (function () {
     var was = !!videoItem;
     videoItem = null;
     videoTurn = null;
+    startAt = null;
+    clearTimeout(autoTimer);
     unloadVideo();
     U.hide(video);
     U.hide(vinfo);
@@ -475,17 +514,21 @@ var Viewer = (function () {
     cantPlay();
   }
 
-  /* Back to the still. OK tries again. */
+  /* Back to the still. OK tries again (in a slideshow, OK pauses it first). A slideshow
+     shows the still for the usual time, with its music, and goes on. */
   function cantPlay() {
     unloadVideo();
     U.hide(video);
     status.textContent = '';
+    videoBroken = true;
     drawVideoTime();
     drawVideoHint();
+    if (playing) { setPlaying(true, true); }
     toast('This video can\'t play on this TV');
   }
 
-  /* On a video, OK plays or pauses it instead of the slideshow. */
+  /* On a video, OK plays or pauses it instead of the slideshow, and while it plays
+     ◀ ▶ seek (renderHint asks videoSeeks). */
   function drawVideoHint() {
     if (!videoItem) { return; }
     okLabel = videoPlaying() ? 'Pause video' : 'Play video';
@@ -502,12 +545,74 @@ var Viewer = (function () {
     vfill.style.width = (d ? Math.min(100, t / d * 100) : 0) + '%';
   }
 
-  /* While a video is showing, OK, Play and Pause work the video instead of the slideshow. */
+  /* Seeking: ⏪ ⏩, and ◀ ▶ while the video plays, jump SEEK_S seconds; a click on the
+     line jumps to that point. immich answers range requests, so a jump doesn't wait
+     for the whole file. */
+  var SEEK_S = 10, seekedAt = 0, startAt = null;
+
+  function canSeek() {
+    var d = video.duration;
+    return !!video.getAttribute('src') && isFinite(d) && d > 0;
+  }
+
+  /* ◀ ▶ seek only while the video plays; paused, not started or ended, they browse. */
+  function videoSeeks() { return !!videoItem && videoPlaying() && canSeek(); }
+
+  function seekTo(t) {
+    if (!canSeek()) { return; }
+    video.currentTime = Math.max(0, Math.min(video.duration, t));
+    seekedAt = new Date().getTime();
+    if (!Details.isOpen()) { U.show(bar); } // where it is now, even in a slideshow
+    wake();
+    drawVideoTime();
+  }
+
+  /* A Magic Remote click on the line. Before the video has loaded it starts playing,
+     from that point once its length is known (startFrom). */
+  function clickLine(e, line) {
+    var r = line.getBoundingClientRect(), f = r.width ? (e.clientX - r.left) / r.width : 0;
+    if (e.stopPropagation) { e.stopPropagation(); } // not also the viewer's click (next photo)
+    if (!videoItem) { return; }
+    f = Math.max(0, Math.min(1, f));
+    if (canSeek()) { return seekTo(f * video.duration); }
+    startAt = f;
+    playVideo();
+  }
+
+  function startFrom() {
+    if (startAt === null || !canSeek()) { return; }
+    video.currentTime = startAt * video.duration;
+    startAt = null;
+    drawVideoTime();
+  }
+
+  /* While a video is showing, OK, Play and Pause work the video instead of the slideshow.
+     ⏪ ⏩ seek once it has been started (before that they browse, as on a photo). ◀ ▶
+     seek while it plays and browse otherwise: many Magic Remotes have no ⏪ ⏩. */
   function videoKey(k) {
+    var now = new Date().getTime(), step = k === KEY.RIGHT || k === KEY.FF ? SEEK_S : -SEEK_S;
+    // In a slideshow, OK and Pause pause the slideshow and the video with it, so one
+    // press stills the screen as on a photo (a video playing on under a paused
+    // slideshow would be odd). OK then plays the video on its own.
+    if (playing && (k === KEY.OK || k === KEY.PAUSE)) {
+      clearTimeout(autoTimer);
+      video.pause();
+      setPlaying(false);
+      return true;
+    }
     switch (k) {
       case KEY.OK: if (videoPlaying()) { video.pause(); } else { playVideo(); } return true;
       case KEY.PLAY: playVideo(); return true;
       case KEY.PAUSE: video.pause(); return true;
+      case KEY.RW: case KEY.FF:
+        if (!video.getAttribute('src')) { return false; }
+        seekTo(video.currentTime + step);
+        return true;
+      case KEY.LEFT: case KEY.RIGHT:
+        if (videoSeeks()) { seekTo(video.currentTime + step); return true; }
+        // A held ▶ that seeked to the end stops there, not at the next photo.
+        if (k === KEY.RIGHT && video.ended && now - seekedAt < 600) { seekedAt = now; return true; }
+        return false;
     }
     return false;
   }
