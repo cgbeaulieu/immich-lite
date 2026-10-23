@@ -240,7 +240,11 @@ var Immich = (function () {
 
   // ---------- images ----------
 
-  /* size: 'thumbnail' (small webp, for the grid) or 'preview' (large jpeg, for full screen). */
+  /* size: 'thumbnail' (small webp, for the grid), 'preview' (large jpeg, for full screen) or
+     'fullsize' (the whole photo, for zooming in). For a JPEG, PNG, WebP or GIF, immich
+     answers 'fullsize' with a redirect to the original file, which needs the
+     asset.download permission on an API key; for others (HEIC, RAW) it's a JPEG it made,
+     or the preview if the server doesn't make those. */
   Client.prototype.thumbUrl = function (id, size) {
     return this.mediaUrl('/assets/' + encodeURIComponent(id) + '/thumbnail', { size: size || 'thumbnail' });
   };
